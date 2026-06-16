@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +40,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ab-land runtime data — never commit (DB + user-supplied licensed files)
+/data/*
+!/data/.gitkeep
+!/data/altalis/
+/data/altalis/*
+!/data/altalis/.gitkeep
+*.sqlite
+*.sqlite-*
