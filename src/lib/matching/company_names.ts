@@ -8,8 +8,8 @@
  * Data source: none (string normalization)
  * @see CLAUDE.md §5, §11
  *
- * TODO: add an alias/predecessor table (e.g. amalgamations, rebrands) keyed by
- * normalized name once real holder data has been profiled.
+ * Predecessor/rebrand resolution (amalgamations, rebrands) lives in the curated
+ * alias table in `company_aliases.ts`; this module handles only normalization.
  */
 
 /** Legal suffixes stripped from the tail of a name. */

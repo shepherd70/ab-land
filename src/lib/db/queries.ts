@@ -10,6 +10,7 @@ import type { DB } from "./client";
 import type { Disposition } from "../types";
 import type { SearchParams } from "../schemas";
 import { normalizeCompanyName } from "../matching/company_names";
+import { aliasGroupKeys } from "../matching/company_aliases";
 
 /** Raw row shape as stored. */
 interface DbRow {
@@ -128,13 +129,20 @@ export function getByAgreementNumber(db: DB, agreementNumber: string): Dispositi
   return rows.map(rowToDisposition);
 }
 
-/** All holdings whose normalized holder key matches the company query. */
+/**
+ * All holdings whose normalized holder key matches the company query, broadened
+ * to include known alias/predecessor names for the same entity (heuristic — see
+ * lib/matching/company_aliases).
+ */
 export function listByCompany(db: DB, company: string, withGeometry = false): Disposition[] {
   const cols = withGeometry ? "d.*" : SUMMARY_COLS;
+  const keys = aliasGroupKeys(normalizeCompanyName(company));
+  const placeholders = keys.map(() => "?").join(", ");
   const rows = db
     .prepare(
-      `SELECT ${cols} FROM dispositions d WHERE d.holder_norm = ? ORDER BY d.agreement_number, d.tract`,
+      `SELECT ${cols} FROM dispositions d WHERE d.holder_norm IN (${placeholders})
+       ORDER BY d.agreement_number, d.tract`,
     )
-    .all(normalizeCompanyName(company)) as DbRow[];
+    .all(...keys) as DbRow[];
   return rows.map(rowToDisposition);
 }
