@@ -1,0 +1,92 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-114.2, 51.0],
+            [-114.2, 51.1],
+            [-114.1, 51.1],
+            [-114.1, 51.0],
+            [-114.2, 51.0]
+          ]
+        ]
+      },
+      "properties": {
+        "AgreementType": "Petroleum and Natural Gas Agreement",
+        "AgreementNumber": "0512345",
+        "Tract": "1",
+        "Status": "Continued",
+        "DesRep": "CANADIAN NATURAL RESOURCES LIMITED",
+        "DesRepId": 1001,
+        "Participants": "CANADIAN NATURAL RESOURCES LIMITED 100%",
+        "TermDate": 1262304000000,
+        "CurrentExpiryDate": 1893456000000,
+        "ContinuationDate": null,
+        "CancelDate": null,
+        "ZoneDesc": "All zones"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-114.1, 51.0],
+            [-114.1, 51.1],
+            [-114.0, 51.1],
+            [-114.0, 51.0],
+            [-114.1, 51.0]
+          ]
+        ]
+      },
+      "properties": {
+        "AgreementType": "Petroleum and Natural Gas Agreement",
+        "AgreementNumber": "0512345",
+        "Tract": "2",
+        "Status": "Continued",
+        "DesRep": "CANADIAN NATURAL RESOURCES LIMITED",
+        "DesRepId": 1001,
+        "Participants": "CANADIAN NATURAL RESOURCES LIMITED 100%",
+        "TermDate": 1262304000000,
+        "CurrentExpiryDate": 1893456000000,
+        "ContinuationDate": null,
+        "CancelDate": null,
+        "ZoneDesc": "All zones"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-113.9, 51.0],
+            [-113.9, 51.1],
+            [-113.8, 51.1],
+            [-113.8, 51.0],
+            [-113.9, 51.0]
+          ]
+        ]
+      },
+      "properties": {
+        "AgreementType": "Petroleum and Natural Gas Agreement",
+        "AgreementNumber": "0698765",
+        "Tract": "1",
+        "Status": "Active",
+        "DesRep": "TOURMALINE OIL CORP.",
+        "DesRepId": 2002,
+        "Participants": "TOURMALINE OIL CORP. 60%; SOME PARTNER LTD 40%",
+        "TermDate": 1262304000000,
+        "CurrentExpiryDate": 1893456000000,
+        "ContinuationDate": null,
+        "CancelDate": null,
+        "ZoneDesc": "Below base of Mannville"
+      }
+    }
+  ]
+}
