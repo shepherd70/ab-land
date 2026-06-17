@@ -7,9 +7,10 @@
  * Data source: none (string parsing)
  * @see CLAUDE.md §1 (search by location)
  *
- * TODO: turning an AtsLocation into a polygon to spatially filter dispositions
- * requires joining the ATS grid layer (GeoView `ATS_Grid_Ext_PROD`). That join
- * is a follow-up; this module only parses/normalizes the descriptor.
+ * This module only parses/normalizes the descriptor. `lib/spatial/ats_grid`
+ * turns an AtsLocation into an approximate WGS84 bbox for a coarse spatial
+ * filter; an authoritative polygon match via the GeoView `ATS_Grid_Ext_PROD`
+ * layer is a network-dependent follow-up.
  */
 
 export type Quarter = "NE" | "NW" | "SE" | "SW";
