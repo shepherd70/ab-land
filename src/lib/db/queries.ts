@@ -11,6 +11,8 @@ import type { Disposition } from "../types";
 import type { SearchParams } from "../schemas";
 import { normalizeCompanyName } from "../matching/company_names";
 import { aliasGroupKeys } from "../matching/company_aliases";
+import { parseAts, type AtsLocation } from "../ats";
+import { atsApproxBbox } from "../spatial/ats_grid";
 
 /** Raw row shape as stored. */
 interface DbRow {
@@ -107,9 +109,16 @@ export function searchDispositions(db: DB, params: SearchParams): Disposition[] 
     return (db.prepare(sql).all(bind) as DbRow[]).map(rowToDisposition);
   }
 
-  // company / ats / auto -> full-text search on holder + participants + number.
-  // TODO: for kind === "ats", parse with lib/ats and spatially filter via the
-  // ATS grid layer instead of text search.
+  // ATS: explicit kind, or auto when the query parses as a legal land description.
+  // Uses an approximate DLS grid bbox (lib/spatial/ats_grid) as a coarse filter;
+  // the authoritative ATS_Grid_Ext_PROD join is a network-dependent follow-up.
+  if (kind === "ats" || kind === "auto") {
+    const loc = parseAts(q);
+    if (loc) return searchByAts(db, loc, { family, limit, offset });
+    if (kind === "ats") return []; // explicit ATS query that isn't a valid descriptor
+  }
+
+  // company / auto fallback -> full-text search on holder + participants + number.
   const match = toFtsMatch(q);
   if (!match) return [];
   const sql = `SELECT ${SUMMARY_COLS} FROM dispositions d
@@ -117,6 +126,28 @@ export function searchDispositions(db: DB, params: SearchParams): Disposition[] 
     WHERE dispositions_fts MATCH @match ${family ? "AND d.family = @family" : ""}
     ORDER BY rank LIMIT @limit OFFSET @offset`;
   const bind: Record<string, unknown> = { match, limit, offset };
+  if (family) bind.family = family;
+  return (db.prepare(sql).all(bind) as DbRow[]).map(rowToDisposition);
+}
+
+/**
+ * Dispositions whose stored bbox overlaps the approximate ATS cell. A coarse
+ * spatial pre-filter, not an authoritative parcel match (see ats_grid).
+ */
+function searchByAts(
+  db: DB,
+  loc: AtsLocation,
+  opts: { family?: string; limit: number; offset: number },
+): Disposition[] {
+  const { family, limit, offset } = opts;
+  const [minx, miny, maxx, maxy] = atsApproxBbox(loc);
+  const sql = `SELECT ${SUMMARY_COLS} FROM dispositions d
+    WHERE d.bbox_minx IS NOT NULL
+      AND d.bbox_minx <= @maxx AND d.bbox_maxx >= @minx
+      AND d.bbox_miny <= @maxy AND d.bbox_maxy >= @miny
+      ${family ? "AND d.family = @family" : ""}
+    ORDER BY d.agreement_number, d.tract LIMIT @limit OFFSET @offset`;
+  const bind: Record<string, unknown> = { minx, miny, maxx, maxy, limit, offset };
   if (family) bind.family = family;
   return (db.prepare(sql).all(bind) as DbRow[]).map(rowToDisposition);
 }
