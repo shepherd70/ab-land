@@ -21,7 +21,7 @@ npm run dev           # http://localhost:3000
 
 | Tier | Source | Access | Used for |
 |------|--------|--------|----------|
-| A (open) | Alberta Energy **GeoView** ArcGIS REST | Open, OGL–Alberta, no auth | Mineral agreements (PNG verified; other families configurable) |
+| A (open) | Alberta Energy **GeoView** ArcGIS REST | Open, OGL–Alberta, no auth | Mineral agreements — all 8 families verified & enabled (PNG, oil sands, coal, metallic/industrial minerals, brine, geothermal, carbon sequestration, pore space) |
 | B (licensed) | **Altalis** DIDs / DIDs+ files | You buy/license and drop into `data/altalis/` | Surface dispositions (optional, dormant until files present) |
 
 **Excluded:** SPIN2 / ARLO land-title ownership (gated, no public API) — out of scope.

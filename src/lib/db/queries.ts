@@ -30,6 +30,7 @@ interface DbRow {
   continuation_date: string | null;
   cancel_date: string | null;
   zone_desc: string | null;
+  target_substance: string | null;
   area_ha: number | null;
   centroid_lon: number | null;
   centroid_lat: number | null;
@@ -45,7 +46,7 @@ interface DbRow {
 const SUMMARY_COLS = `
   d.id, d.source, d.family, d.source_layer, d.agreement_type, d.agreement_number, d.tract, d.status,
   d.holder_desrep, d.holder_desrep_id, d.participants, d.holder_norm,
-  d.term_date, d.current_expiry_date, d.continuation_date, d.cancel_date, d.zone_desc,
+  d.term_date, d.current_expiry_date, d.continuation_date, d.cancel_date, d.zone_desc, d.target_substance,
   d.area_ha, d.centroid_lon, d.centroid_lat, d.bbox_minx, d.bbox_miny, d.bbox_maxx, d.bbox_maxy,
   NULL AS geometry_geojson, d.ingested_at`;
 
@@ -69,6 +70,7 @@ export function rowToDisposition(row: DbRow): Disposition {
     continuationDate: row.continuation_date ?? undefined,
     cancelDate: row.cancel_date ?? undefined,
     zoneDesc: row.zone_desc ?? undefined,
+    targetSubstance: row.target_substance ?? undefined,
     areaHa: row.area_ha ?? undefined,
     centroid:
       row.centroid_lon != null && row.centroid_lat != null

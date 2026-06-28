@@ -68,6 +68,8 @@ export interface Disposition {
   continuationDate?: string;
   cancelDate?: string;
   zoneDesc?: string;
+  /** Mineral/brine TargetSubstance, or coal CoalCategory — free-text searchable. */
+  targetSubstance?: string;
   areaHa?: number;
   /** [lon, lat] in WGS84. */
   centroid?: [number, number];

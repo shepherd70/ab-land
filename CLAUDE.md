@@ -24,9 +24,13 @@ local SQLite database and lets the user:
   TransferPending, ContinuationPending`, polygon geometry. Query -> JSON/GeoJSON,
   maxRecordCount 1000, supportsPagination true.
 - Other families (oil sands, coal, metallic/industrial minerals, brine, geothermal, carbon
-  sequestration, pore space) live in sibling layers/services (`Mineral_Agreements_Ext_PROD`,
-  `Mineral_Agreements_Overview_Ext_PROD`, `Geothermal_Agreements_Ext_PROD`, ...). **Enumerate and
-  field-verify each in `config/sources.ts` before enabling — only PNG is verified today.**
+  sequestration, pore space) live in sibling layers of the same `Mineral_Agreements_Ext_PROD`
+  service. **All eight families are now field-verified and enabled in `config/sources.ts`**
+  (verified 2026-06): PNG/31, oil-sands/24, coal/39, minerals/57, brine/63, geothermal/72,
+  carbon-seq/52+51, pore-space/75. We ingest only tenure leaf layers (agreements/leases); ArcGIS
+  group nodes, Applications, and Postings are excluded. Note: geothermal is taken from layer 72 of
+  this service (more complete) rather than the separate `Geothermal_Agreements_Ext_PROD`. Always
+  field-verify a layer against the live service before adding it here.
 - **Licence: Open Government Licence – Alberta.** Attribute it in the UI + README.
 - Always request `outSR=4326` (WGS84 lon/lat) so geometry is MapLibre-ready.
 - Be polite: page at maxRecordCount, throttle, cache to the DB. Never hammer the service.
