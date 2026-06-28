@@ -10,11 +10,13 @@ import { MapExplorer } from "@/components/MapExplorer";
 export const dynamic = "force-dynamic";
 
 export default function MapPage() {
-  // min-h-0 is load-bearing: without it this flex item's default min-height:auto
-  // lets the map canvas push past the column and break the pinned footer.
+  // The map needs a *definite* height to fill. The app-shell body is `min-h-full`
+  // (a minimum, not a definite height), so a percentage `h-full` here collapses to
+  // the sidebar's content height. Pin the explorer to the viewport minus the
+  // header+footer chrome (~3.5rem) with dvh, which resolves without a definite parent.
   return (
     <main className="min-h-0 flex-1">
-      <MapExplorer className="h-full w-full" />
+      <MapExplorer className="h-[calc(100dvh_-_3.5rem)] w-full" />
     </main>
   );
 }
