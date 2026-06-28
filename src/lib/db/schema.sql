@@ -65,6 +65,29 @@ CREATE TRIGGER IF NOT EXISTS disp_au AFTER UPDATE ON dispositions BEGIN
   VALUES (new.id, new.holder_desrep, new.participants, new.agreement_number, new.target_substance);
 END;
 
+-- Spatial index over parcel bounding boxes, for fast map-viewport queries.
+-- Mirrors the FTS trigger trio above so it stays in sync with the base table.
+-- The INSERT…SELECT…WHERE (rather than a trigger-level WHEN) is deliberate: the
+-- AFTER UPDATE trigger must ALWAYS delete the stale rtree row, but only re-insert
+-- when the new bbox is non-null. Upsert keeps the same id, so AFTER UPDATE fires
+-- on re-ingest and the index stays correct.
+CREATE VIRTUAL TABLE IF NOT EXISTS dispositions_rtree USING rtree(id, minx, maxx, miny, maxy);
+
+CREATE TRIGGER IF NOT EXISTS disp_rtree_ai AFTER INSERT ON dispositions BEGIN
+  INSERT INTO dispositions_rtree (id, minx, maxx, miny, maxy)
+  SELECT new.id, new.bbox_minx, new.bbox_maxx, new.bbox_miny, new.bbox_maxy WHERE new.bbox_minx IS NOT NULL;
+END;
+
+CREATE TRIGGER IF NOT EXISTS disp_rtree_ad AFTER DELETE ON dispositions BEGIN
+  DELETE FROM dispositions_rtree WHERE id = old.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS disp_rtree_au AFTER UPDATE ON dispositions BEGIN
+  DELETE FROM dispositions_rtree WHERE id = old.id;
+  INSERT INTO dispositions_rtree (id, minx, maxx, miny, maxy)
+  SELECT new.id, new.bbox_minx, new.bbox_maxx, new.bbox_miny, new.bbox_maxy WHERE new.bbox_minx IS NOT NULL;
+END;
+
 -- Tracks each ingest run for observability.
 CREATE TABLE IF NOT EXISTS ingest_runs (
   id          INTEGER PRIMARY KEY,

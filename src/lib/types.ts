@@ -24,6 +24,20 @@ export type MineralFamily =
 export type Family = MineralFamily | "surface";
 
 /**
+ * A lean centroid record for the province-wide map overview. One per parcel
+ * with a known centroid; ~77k of these are shipped to the client and clustered
+ * by MapLibre, so the shape is intentionally minimal.
+ */
+export interface MapCentroid {
+  id: number;
+  lon: number;
+  lat: number;
+  family: MineralFamily;
+  agreementNumber: string;
+  status?: string;
+}
+
+/**
  * One entry in the ingest source registry (`config/sources.ts`).
  * Describes a single ArcGIS layer to pull.
  */

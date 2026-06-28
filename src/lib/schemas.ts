@@ -7,6 +7,7 @@
  * @see CLAUDE.md §6, §11
  */
 import { z } from "zod";
+import { MINERAL_FAMILIES } from "./map/families";
 
 /** A GeoJSON geometry as returned by ArcGIS with f=geojson, outSR=4326. */
 export const GeoJsonGeometry = z
@@ -79,3 +80,44 @@ export const SearchParams = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 export type SearchParams = z.infer<typeof SearchParams>;
+
+/** The eight open mineral families as a Zod enum (mirrors MINERAL_FAMILIES). */
+export const MineralFamilyEnum = z.enum(MINERAL_FAMILIES);
+
+/**
+ * Optional comma-separated families param → validated `MineralFamily[]`
+ * (undefined when absent/empty). Any unknown token fails the whole request.
+ */
+const FamiliesCsv = z
+  .string()
+  .optional()
+  .transform((s) => (s ? s.split(",").map((t) => t.trim()).filter(Boolean) : undefined))
+  .pipe(z.array(MineralFamilyEnum).nonempty().optional());
+
+/** Query parameters for GET /api/map/features. */
+export const MapFeaturesParams = z
+  .object({
+    bbox: z
+      .string()
+      .transform((s) => s.split(",").map(Number))
+      .pipe(
+        z.tuple([
+          z.number().finite().min(-180).max(180),
+          z.number().finite().min(-90).max(90),
+          z.number().finite().min(-180).max(180),
+          z.number().finite().min(-90).max(90),
+        ]),
+      ),
+    families: FamiliesCsv,
+    status: z.string().trim().min(1).max(100).optional(),
+    limit: z.coerce.number().int().min(1).max(4000).default(2000),
+  })
+  .refine((v) => v.bbox[0] <= v.bbox[2] && v.bbox[1] <= v.bbox[3], {
+    message: "bbox must be minx,miny,maxx,maxy with min <= max",
+    path: ["bbox"],
+  });
+export type MapFeaturesParams = z.infer<typeof MapFeaturesParams>;
+
+/** Query parameters for GET /api/map/centroids. */
+export const MapCentroidsParams = z.object({ families: FamiliesCsv });
+export type MapCentroidsParams = z.infer<typeof MapCentroidsParams>;
