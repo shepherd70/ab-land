@@ -17,13 +17,13 @@ export function prepareUpsert(db: DB): UpsertFn {
     INSERT INTO dispositions (
       source, family, source_layer, agreement_type, agreement_number, tract, status,
       holder_desrep, holder_desrep_id, participants, holder_norm,
-      term_date, current_expiry_date, continuation_date, cancel_date, zone_desc,
+      term_date, current_expiry_date, continuation_date, cancel_date, zone_desc, target_substance,
       area_ha, centroid_lon, centroid_lat, bbox_minx, bbox_miny, bbox_maxx, bbox_maxy,
       geometry_geojson, ingested_at
     ) VALUES (
       @source, @family, @sourceLayer, @agreementType, @agreementNumber, @tract, @status,
       @holderDesrep, @holderDesrepId, @participants, @holderNorm,
-      @termDate, @currentExpiryDate, @continuationDate, @cancelDate, @zoneDesc,
+      @termDate, @currentExpiryDate, @continuationDate, @cancelDate, @zoneDesc, @targetSubstance,
       @areaHa, @centroidLon, @centroidLat, @bboxMinx, @bboxMiny, @bboxMaxx, @bboxMaxy,
       @geometryGeoJSON, @ingestedAt
     )
@@ -41,6 +41,7 @@ export function prepareUpsert(db: DB): UpsertFn {
       continuation_date = excluded.continuation_date,
       cancel_date = excluded.cancel_date,
       zone_desc = excluded.zone_desc,
+      target_substance = excluded.target_substance,
       area_ha = excluded.area_ha,
       centroid_lon = excluded.centroid_lon,
       centroid_lat = excluded.centroid_lat,
@@ -70,6 +71,7 @@ export function prepareUpsert(db: DB): UpsertFn {
       continuationDate: d.continuationDate ?? null,
       cancelDate: d.cancelDate ?? null,
       zoneDesc: d.zoneDesc ?? null,
+      targetSubstance: d.targetSubstance ?? null,
       areaHa: d.areaHa ?? null,
       centroidLon: d.centroid?.[0] ?? null,
       centroidLat: d.centroid?.[1] ?? null,

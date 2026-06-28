@@ -28,6 +28,7 @@ export function HoldingDetail({ d }: { d: Disposition }) {
       <Row label="Term date" value={d.termDate} />
       <Row label="Current expiry" value={d.currentExpiryDate} />
       <Row label="Zone" value={d.zoneDesc} />
+      <Row label="Substance / category" value={d.targetSubstance} />
       <Row label="Area (ha)" value={d.areaHa != null ? d.areaHa.toFixed(1) : undefined} />
     </dl>
   );

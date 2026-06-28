@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS dispositions (
   continuation_date    TEXT,
   cancel_date          TEXT,
   zone_desc            TEXT,
+  target_substance     TEXT,                     -- minerals/brine TargetSubstance, or coal CoalCategory
   area_ha              REAL,
   centroid_lon         REAL,
   centroid_lat         REAL,
@@ -39,28 +40,29 @@ CREATE INDEX IF NOT EXISTS idx_disp_agreement   ON dispositions (agreement_numbe
 CREATE INDEX IF NOT EXISTS idx_disp_family      ON dispositions (family);
 CREATE INDEX IF NOT EXISTS idx_disp_bbox        ON dispositions (bbox_minx, bbox_miny, bbox_maxx, bbox_maxy);
 
--- Full-text search over holder + participants + agreement number (external content).
+-- Full-text search over holder + participants + agreement number + substance
+-- (external content). target_substance lets users find e.g. "uranium" leases.
 CREATE VIRTUAL TABLE IF NOT EXISTS dispositions_fts USING fts5 (
-  holder_desrep, participants, agreement_number,
+  holder_desrep, participants, agreement_number, target_substance,
   content = 'dispositions', content_rowid = 'id'
 );
 
 -- Keep the FTS index in sync with the base table.
 CREATE TRIGGER IF NOT EXISTS disp_ai AFTER INSERT ON dispositions BEGIN
-  INSERT INTO dispositions_fts (rowid, holder_desrep, participants, agreement_number)
-  VALUES (new.id, new.holder_desrep, new.participants, new.agreement_number);
+  INSERT INTO dispositions_fts (rowid, holder_desrep, participants, agreement_number, target_substance)
+  VALUES (new.id, new.holder_desrep, new.participants, new.agreement_number, new.target_substance);
 END;
 
 CREATE TRIGGER IF NOT EXISTS disp_ad AFTER DELETE ON dispositions BEGIN
-  INSERT INTO dispositions_fts (dispositions_fts, rowid, holder_desrep, participants, agreement_number)
-  VALUES ('delete', old.id, old.holder_desrep, old.participants, old.agreement_number);
+  INSERT INTO dispositions_fts (dispositions_fts, rowid, holder_desrep, participants, agreement_number, target_substance)
+  VALUES ('delete', old.id, old.holder_desrep, old.participants, old.agreement_number, old.target_substance);
 END;
 
 CREATE TRIGGER IF NOT EXISTS disp_au AFTER UPDATE ON dispositions BEGIN
-  INSERT INTO dispositions_fts (dispositions_fts, rowid, holder_desrep, participants, agreement_number)
-  VALUES ('delete', old.id, old.holder_desrep, old.participants, old.agreement_number);
-  INSERT INTO dispositions_fts (rowid, holder_desrep, participants, agreement_number)
-  VALUES (new.id, new.holder_desrep, new.participants, new.agreement_number);
+  INSERT INTO dispositions_fts (dispositions_fts, rowid, holder_desrep, participants, agreement_number, target_substance)
+  VALUES ('delete', old.id, old.holder_desrep, old.participants, old.agreement_number, old.target_substance);
+  INSERT INTO dispositions_fts (rowid, holder_desrep, participants, agreement_number, target_substance)
+  VALUES (new.id, new.holder_desrep, new.participants, new.agreement_number, new.target_substance);
 END;
 
 -- Tracks each ingest run for observability.

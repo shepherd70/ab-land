@@ -33,11 +33,16 @@ export type ArcGisFeatureCollection = z.infer<typeof ArcGisFeatureCollection>;
 export type ArcGisFeature = z.infer<typeof ArcGisFeature>;
 
 /**
- * Properties of the VERIFIED PNG agreement layer
- * (Mineral_Agreements_Ext_PROD/31). ArcGIS dates arrive as epoch-ms numbers;
- * `normalize` converts them to ISO. Numbers/strings tolerated for id fields.
+ * Properties shared by the verified GeoView mineral-agreement leaf layers
+ * (PNG/31, oil sands/24, coal/39, minerals/57, brine/63, geothermal/72,
+ * carbon sequestration/51-52, pore space/75). Every field is optional because
+ * families differ slightly — coal omits `Tract`/`ZoneDesc`/continuation+cancel
+ * and adds `CoalCategory`; minerals & brine add `TargetSubstance` — and
+ * `.loose()` tolerates the remaining per-layer columns. ArcGIS dates arrive as
+ * epoch-ms numbers; `normalize` converts them to ISO. Numbers/strings tolerated
+ * for id fields.
  */
-export const PngAgreementProps = z
+export const MineralAgreementProps = z
   .object({
     AgreementType: z.string().nullish(),
     AgreementNumber: z.union([z.string(), z.number()]).nullish(),
@@ -51,9 +56,19 @@ export const PngAgreementProps = z
     CancelDate: z.union([z.string(), z.number()]).nullish(),
     TermDate: z.union([z.string(), z.number()]).nullish(),
     ZoneDesc: z.string().nullish(),
+    // Variant / extra columns (not present on every layer). TargetSubstance
+    // (minerals/brine) and CoalCategory (coal) are persisted to the searchable
+    // `target_substance` column; CancelCode is parsed but not yet stored.
+    CancelCode: z.union([z.string(), z.number()]).nullish(),
+    TargetSubstance: z.string().nullish(),
+    CoalCategory: z.string().nullish(),
   })
   .loose();
-export type PngAgreementProps = z.infer<typeof PngAgreementProps>;
+export type MineralAgreementProps = z.infer<typeof MineralAgreementProps>;
+
+/** @deprecated PNG-era alias of {@link MineralAgreementProps}; kept for back-compat. */
+export const PngAgreementProps = MineralAgreementProps;
+export type PngAgreementProps = MineralAgreementProps;
 
 /** Query parameters for GET /api/search. */
 export const SearchParams = z.object({
