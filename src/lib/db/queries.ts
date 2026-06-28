@@ -7,7 +7,7 @@
  * @see CLAUDE.md §5
  */
 import type { DB } from "./client";
-import type { Disposition } from "../types";
+import type { Disposition, MapCentroid, MineralFamily } from "../types";
 import type { SearchParams } from "../schemas";
 import { normalizeCompanyName } from "../matching/company_names";
 import { aliasGroupKeys } from "../matching/company_aliases";
@@ -160,6 +160,82 @@ export function getByAgreementNumber(db: DB, agreementNumber: string): Dispositi
     .prepare(`SELECT * FROM dispositions WHERE agreement_number = ? ORDER BY tract`)
     .all(agreementNumber) as DbRow[];
   return rows.map(rowToDisposition);
+}
+
+/** A [minX, minY, maxX, maxY] viewport in WGS84. */
+export type ViewportBbox = [number, number, number, number];
+
+/** Options shared by the map queries. */
+interface ViewportOpts {
+  families?: MineralFamily[];
+  status?: string;
+  limit?: number;
+}
+
+/**
+ * Dispositions whose bounding box overlaps the given viewport, with full
+ * geometry for rendering. Backed by the `dispositions_rtree` spatial index. The
+ * R*Tree stores 32-bit float bounds, so it may over-include a few edge parcels;
+ * for a map viewport that's harmless, so no exact refinement is done.
+ */
+export function featuresInViewport(
+  db: DB,
+  bbox: ViewportBbox,
+  opts: ViewportOpts = {},
+): Disposition[] {
+  const [minx, miny, maxx, maxy] = bbox;
+  const { families, status, limit = 2000 } = opts;
+  const clauses: string[] = [];
+  const bind: Record<string, unknown> = { minx, miny, maxx, maxy, limit };
+  if (families && families.length > 0) {
+    const placeholders = families.map((_, i) => `@family${i}`).join(", ");
+    clauses.push(`d.family IN (${placeholders})`);
+    families.forEach((f, i) => (bind[`family${i}`] = f));
+  }
+  if (status) {
+    clauses.push("d.status = @status");
+    bind.status = status;
+  }
+  const sql = `SELECT d.* FROM dispositions d
+    JOIN dispositions_rtree r ON r.id = d.id
+    WHERE r.minx <= @maxx AND r.maxx >= @minx AND r.miny <= @maxy AND r.maxy >= @miny
+      ${clauses.length ? `AND ${clauses.join(" AND ")}` : ""}
+    LIMIT @limit`;
+  return (db.prepare(sql).all(bind) as DbRow[]).map(rowToDisposition);
+}
+
+/**
+ * Every parcel with a known centroid as a lean record, for the clustered
+ * province-wide overview. ~77k rows; a centroid-column scan runs in a few ms.
+ */
+export function centroidsAll(db: DB, opts: { families?: MineralFamily[] } = {}): MapCentroid[] {
+  const { families } = opts;
+  const bind: Record<string, unknown> = {};
+  let familyClause = "";
+  if (families && families.length > 0) {
+    const placeholders = families.map((_, i) => `@family${i}`).join(", ");
+    familyClause = `AND family IN (${placeholders})`;
+    families.forEach((f, i) => (bind[`family${i}`] = f));
+  }
+  const sql = `SELECT id, centroid_lon AS lon, centroid_lat AS lat, family, agreement_number, status
+    FROM dispositions
+    WHERE centroid_lon IS NOT NULL AND centroid_lat IS NOT NULL ${familyClause}`;
+  const rows = db.prepare(sql).all(bind) as {
+    id: number;
+    lon: number;
+    lat: number;
+    family: string;
+    agreement_number: string;
+    status: string | null;
+  }[];
+  return rows.map((r) => ({
+    id: r.id,
+    lon: r.lon,
+    lat: r.lat,
+    family: r.family as MineralFamily,
+    agreementNumber: r.agreement_number,
+    status: r.status ?? undefined,
+  }));
 }
 
 /**

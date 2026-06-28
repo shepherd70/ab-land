@@ -21,10 +21,18 @@ _Last updated: 2026-06-28 · `main` @ `e7c12a0`_
 - ✅ **#4 — ATS spatial search** — legal-land-description lookup with an offline coarse grid filter (`ats_grid.ts`).
 - ✅ **#5 — Map** — attributed (OGL-Alberta) basemap, controls, fit-to-data (`basemap.ts`, `MapView.tsx`).
 - ✅ **#6 — All mineral families** — 8 families field-verified & enabled in `config/sources.ts` (PNG/31, oil_sands/24, coal/39, minerals/57, brine/63, geothermal/72, carbon_seq/52+51, pore_space/75); searchable `target_substance` in FTS.
+- ✅ **#7 — Map explorer (`/map`)** — province-wide interactive map: clustered centroid overview, R\*Tree-backed viewport polygon fetch on zoom-in, family color/legend/filters, click-through popup → holding (`MapExplorer.tsx`, `lib/map/families.ts`, `/api/map/{centroids,features}`, `dispositions_rtree`). First route-handler tests land here (`api_map.test.ts`, `map_viewport.test.ts`).
 
 ## 🔨 In progress
 
 - _(nothing active — `main` is clean and CI is green)_
+
+## ⬜ Next up — map follow-ups
+
+- ⬜ **Company-profile map.** The company page still has no map; reuse `MapExplorer` (or a seeded
+  variant) to plot a single company's holdings. Natural extension of `/map`.
+- ⬜ **Simplified geometry column.** Giant parcels (max ~3.5 MB) are re-sent whole per viewport move;
+  add an ingest-time simplified-geometry column if panning lags.
 
 ## ⬜ Next up — live-data correctness (highest value)
 
@@ -47,5 +55,5 @@ Real quirks of the live GeoView data the normalizer/UI currently ignore (see mem
 
 - ✅ **CI** — GitHub Actions (`.github/workflows/ci.yml`): `npm ci → lint → typecheck → test → build` on every PR and push to `main` (Node 24).
 - ✅ **Test suites (8)** — ATS parsing (`ats`), company matching (`company_names`, `company_aliases`), spatial helpers (`geo`, `ats_grid`, `ats_search`), basemap config (`basemap`), offline minerals ingest (`ingest_minerals`).
-- ⬜ **Route-handler tests** — none of the 3 `/api/*` handlers (`search`, `holdings/[id]`, `companies/[name]`) are tested yet; charter §10 calls for a few against a temp SQLite fixture.
+- 🔨 **Route-handler tests** — the map handlers (`/api/map/{features,centroids}`) now have tests against a temp SQLite fixture (`api_map.test.ts`); the original 3 (`search`, `holdings/[id]`, `companies/[name]`) are still untested.
 - ⬜ **Dependency hygiene** — 2 moderate postcss advisories inside Next's build toolchain are accepted (build-time only, single-user local app). Never `npm audit fix --force` (see memory `ab-land-npm-audit-fix-force`); revisit when Next bumps its bundled postcss.
