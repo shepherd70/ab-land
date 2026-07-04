@@ -1,7 +1,7 @@
 /**
  * Map query layer over an in-memory DB: seeds parcels with known bboxes and
  * families, then exercises the R*Tree-backed viewport query, the centroid
- * overview query, family filtering, and the expiry sentinel formatter. Offline.
+ * overview query, and family filtering. Offline.
  *
  * @module test/map_viewport
  * @see CLAUDE.md §10
@@ -10,7 +10,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { applySchema, openDb, type DB } from "../lib/db/client";
 import { prepareUpsert } from "../lib/ingest/upsert";
 import { centroidsAll, featuresInViewport } from "../lib/db/queries";
-import { formatExpiry } from "../lib/map/families";
 import type { Disposition, MineralFamily } from "../lib/types";
 
 /** A parcel centered at [lon, lat] with a small square bbox. */
@@ -86,16 +85,5 @@ describe("centroidsAll", () => {
   it("filters by family", () => {
     const rows = centroidsAll(db, { families: ["geothermal"] });
     expect(rows.map((r) => r.agreementNumber)).toEqual(["0500003"]);
-  });
-});
-
-describe("formatExpiry", () => {
-  it("renders the 9999 sentinel as a continued agreement", () => {
-    expect(formatExpiry("9999-12-31")).toBe("Continued / no expiry");
-  });
-
-  it("passes through a real date and falls back for null", () => {
-    expect(formatExpiry("2030-06-30")).toBe("2030-06-30");
-    expect(formatExpiry(null)).toBe("—");
   });
 });

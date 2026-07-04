@@ -27,8 +27,8 @@ import {
   MINERAL_FAMILIES,
   familyColorMatchExpression,
   familyLabel,
-  formatExpiry,
 } from "@/lib/map/families";
+import { formatAgreementType, formatExpiry } from "@/lib/tenure";
 import type { MapCentroid, MineralFamily } from "@/lib/types";
 
 /** Province-wide default view. */
@@ -76,7 +76,8 @@ function popupHtml(props: Record<string, unknown>): string {
   const agreement = String(props.agreementNumber ?? "");
   const href = `/holdings/${encodeURIComponent(agreement)}`;
   const rows: string[] = [];
-  if (props.agreementType) rows.push(`<div>Type code: ${escapeHtml(props.agreementType)}</div>`);
+  if (props.agreementType)
+    rows.push(`<div>Type: ${escapeHtml(formatAgreementType(props.agreementType as string))}</div>`);
   if (props.status) rows.push(`<div>Status: ${escapeHtml(props.status)}</div>`);
   rows.push(`<div>Expiry: ${escapeHtml(formatExpiry(props.currentExpiryDate as string | null))}</div>`);
   if (props.areaHa != null) rows.push(`<div>${escapeHtml(props.areaHa)} ha</div>`);

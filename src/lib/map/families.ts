@@ -69,12 +69,3 @@ export function familyColorMatchExpression(): unknown[] {
   match.push(FALLBACK_COLOR);
   return match;
 }
-
-/**
- * Render an expiry date for display. The live GeoView data uses `9999-12-31`
- * (and other `9999-…` values) as a sentinel for continued / no-expiry
- * agreements — show that intent rather than a literal far-future date.
- */
-export function formatExpiry(v?: string | null): string {
-  return v?.startsWith("9999") ? "Continued / no expiry" : (v ?? "—");
-}

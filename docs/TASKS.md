@@ -9,7 +9,7 @@
 
 **Legend:** ✅ done · 🔨 in progress · ⬜ queued · 💤 dormant (blocked on external input) · 🚫 out of scope
 
-_Last updated: 2026-06-28 · `main` @ `e7c12a0`_
+_Last updated: 2026-07-04 · `main` @ `16a4f34`_
 
 ---
 
@@ -21,7 +21,8 @@ _Last updated: 2026-06-28 · `main` @ `e7c12a0`_
 - ✅ **#4 — ATS spatial search** — legal-land-description lookup with an offline coarse grid filter (`ats_grid.ts`).
 - ✅ **#5 — Map** — attributed (OGL-Alberta) basemap, controls, fit-to-data (`basemap.ts`, `MapView.tsx`).
 - ✅ **#6 — All mineral families** — 8 families field-verified & enabled in `config/sources.ts` (PNG/31, oil_sands/24, coal/39, minerals/57, brine/63, geothermal/72, carbon_seq/52+51, pore_space/75); searchable `target_substance` in FTS.
-- ✅ **#7 — Map explorer (`/map`)** — province-wide interactive map: clustered centroid overview, R\*Tree-backed viewport polygon fetch on zoom-in, family color/legend/filters, click-through popup → holding (`MapExplorer.tsx`, `lib/map/families.ts`, `/api/map/{centroids,features}`, `dispositions_rtree`). First route-handler tests land here (`api_map.test.ts`, `map_viewport.test.ts`).
+- ✅ **#7 — Map explorer (`/map`)** — province-wide interactive map: clustered centroid overview, R\*Tree-backed viewport polygon fetch on zoom-in, family color/legend/filters, click-through popup → holding (`MapExplorer.tsx`, `lib/map/families.ts`, `/api/map/{centroids,features}`, `dispositions_rtree`). First route-handler tests land here (`api_map.test.ts`, `map_viewport.test.ts`). Follow-up fix: `/map` fills the viewport height (PR #9).
+- ✅ **#8 — Live-data correctness** — `lib/tenure.ts`: field-verified `AgreementType` code→label map (PNG lease/licence × Plains/Northern/Foothills bound by joining public offering notices ↔ GeoView issuances via the `TTYYMM####` number structure; other codes from type-specific leaf layers; legacy 001/002/003 from `ZoneDesc` substances; `A##` = application; `010` deliberately unmapped → "Type 010"). `9999-12-31` expiry renders "Continued / no expiry" in table, detail, and popup. Holding page is multi-tract aware (per-tract table, per-family sections for number collisions); company profile counts agreements vs parcels (`summarizeHoldings`). Coal `CoalCategory` labeled as policy restriction, substance row hidden when absent (brine).
 
 ## 🔨 In progress
 
@@ -33,15 +34,9 @@ _Last updated: 2026-06-28 · `main` @ `e7c12a0`_
   variant) to plot a single company's holdings. Natural extension of `/map`.
 - ⬜ **Simplified geometry column.** Giant parcels (max ~3.5 MB) are re-sent whole per viewport move;
   add an ingest-time simplified-geometry column if panning lags.
-
-## ⬜ Next up — live-data correctness (highest value)
-
-Real quirks of the live GeoView data the normalizer/UI currently ignore (see memory `ab-land-data-quirks`; verify layer ids + field names against the live ArcGIS REST directory before coding):
-
-- ⬜ **AgreementType code → label map.** `AgreementType` is a numeric code (`004`, `054`, `070–075`…), not a label — needs a lookup before the UI is meaningful. Applies to **all** families.
-- ⬜ **Expiry sentinel handling.** `CurrentExpiryDate` returns `9999-12-31` for continued/active agreements → render as "Continued / no expiry," not a literal date. All families.
-- ⬜ **Multi-tract agreements.** One agreement can span multiple tracts (e.g. `5495110028` → `01`, `02`). Natural key is `(source, agreement_number, tract)` — UI/aggregation must never assume one row per agreement.
-- ⬜ **Per-family field nuances.** brine (63) `TargetSubstance` is always null; coal (39) `CoalCategory` is policy-restriction text, not a commodity. Ensure detail views label these correctly.
+- ⬜ **Application rows in tenure layers.** Geothermal/72 contains `A60` and PNG/31 two `A59` rows
+  (applications, not granted tenure). They're ingested and labeled "– application"; decide whether
+  to exclude or badge them in search/map views.
 
 ## 💤 Dormant — blocked on external input
 
