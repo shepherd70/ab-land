@@ -1,5 +1,6 @@
 /**
  * Tabular search results. Links to holding detail and company profile.
+ * One row per parcel/tract — a multi-tract agreement appears once per tract.
  *
  * @module components/ResultsTable
  * Data source: none (renders provided rows)
@@ -7,6 +8,7 @@
  */
 import Link from "next/link";
 import type { Disposition } from "@/lib/types";
+import { formatAgreementType, formatExpiry } from "@/lib/tenure";
 
 export function ResultsTable({ rows }: { rows: Disposition[] }) {
   if (rows.length === 0) return null;
@@ -24,7 +26,7 @@ export function ResultsTable({ rows }: { rows: Disposition[] }) {
       <tbody>
         {rows.map((d) => (
           <tr
-            key={`${d.agreementNumber}-${d.tract ?? ""}`}
+            key={d.id ?? `${d.source}-${d.family}-${d.agreementNumber}-${d.tract ?? ""}`}
             className="border-b border-zinc-100 dark:border-zinc-900"
           >
             <td className="py-2 pr-4">
@@ -36,7 +38,9 @@ export function ResultsTable({ rows }: { rows: Disposition[] }) {
                 {d.tract ? `-${d.tract}` : ""}
               </Link>
             </td>
-            <td className="py-2 pr-4">{d.agreementType ?? "—"}</td>
+            <td className="py-2 pr-4" title={d.agreementType ?? undefined}>
+              {formatAgreementType(d.agreementType)}
+            </td>
             <td className="py-2 pr-4">
               {d.holderDesrep ? (
                 <Link
@@ -50,7 +54,7 @@ export function ResultsTable({ rows }: { rows: Disposition[] }) {
               )}
             </td>
             <td className="py-2 pr-4">{d.status ?? "—"}</td>
-            <td className="py-2 pr-4">{d.currentExpiryDate ?? "—"}</td>
+            <td className="py-2 pr-4">{formatExpiry(d.currentExpiryDate)}</td>
           </tr>
         ))}
       </tbody>
