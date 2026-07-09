@@ -78,6 +78,9 @@ describe("PNG mineral ingest (offline)", () => {
 
     const [first] = tracts;
     expect(first.family).toBe("png");
+    // Live data carries numeric type codes; normalize must store the raw code —
+    // labeling is display-layer only (lib/tenure).
+    expect(first.agreementType).toBe("004");
     expect(first.holderDesrep).toBe("CANADIAN NATURAL RESOURCES LIMITED");
     expect(first.holderNorm).toBeTruthy();
     expect(first.participants).toContain("CANADIAN NATURAL RESOURCES LIMITED 100%");
