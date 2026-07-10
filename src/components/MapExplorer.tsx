@@ -94,6 +94,7 @@ function popupHtml(props: Record<string, unknown>): string {
 export function MapExplorer({
   className,
   company,
+  initialBounds,
 }: {
   className?: string;
   /**
@@ -102,11 +103,19 @@ export function MapExplorer({
    * both data fetches capture the value; pass a stable string.
    */
   company?: string;
+  /**
+   * Frame the map on these [west, south, east, north] bounds at construction
+   * instead of the province default (used with `company` to open on the
+   * holdings without a province-view flash). Fixed per mount, like `company`.
+   */
+  initialBounds?: [number, number, number, number];
 }): React.ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
-  // Fixed per mount (see prop doc) — a ref keeps loadViewport non-reactive.
+  // Fixed per mount (see prop docs) — refs keep the map-creation effect and
+  // loadViewport non-reactive.
   const companyRef = useRef(company);
+  const initialBoundsRef = useRef(initialBounds);
   const loadedRef = useRef(false);
   const filtersRef = useRef<{ families: Set<MineralFamily>; status: string }>({
     families: new Set(MINERAL_FAMILIES),
@@ -183,6 +192,11 @@ export function MapExplorer({
         center: ALBERTA_CENTER,
         zoom: ALBERTA_ZOOM,
         attributionControl: false,
+        // Constructor bounds override center/zoom, so the right basemap tiles
+        // load first and there is no province-view flash.
+        ...(initialBoundsRef.current
+          ? { bounds: initialBoundsRef.current, fitBoundsOptions: { padding: 40, maxZoom: 10 } }
+          : {}),
       });
       mapRef.current = map;
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");

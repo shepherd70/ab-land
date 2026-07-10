@@ -273,6 +273,32 @@ export function centroidsAll(
   }));
 }
 
+/**
+ * The merged bounding box of every parcel the company holds ([minX, minY,
+ * maxX, maxY], WGS84) — computed server-side so the company map can frame its
+ * holdings at construction without shipping centroids to the client. Null when
+ * no matching row has a stored bbox. Same alias-expanded heuristic match as
+ * {@link listByCompany}.
+ */
+export function companyBounds(db: DB, company: string): ViewportBbox | null {
+  const { clause, bind } = holderNormClause(company, "holder_norm");
+  const row = db
+    .prepare(
+      `SELECT MIN(bbox_minx) AS minx, MIN(bbox_miny) AS miny,
+              MAX(bbox_maxx) AS maxx, MAX(bbox_maxy) AS maxy
+       FROM dispositions WHERE ${clause} AND bbox_minx IS NOT NULL`,
+    )
+    .get(bind) as {
+    minx: number | null;
+    miny: number | null;
+    maxx: number | null;
+    maxy: number | null;
+  };
+  return row.minx == null || row.miny == null || row.maxx == null || row.maxy == null
+    ? null
+    : [row.minx, row.miny, row.maxx, row.maxy];
+}
+
 /** Options for {@link listByCompany}. */
 export interface CompanyHoldingsOpts {
   /** Include the stored polygon GeoJSON. Large holders store tens of MB. */

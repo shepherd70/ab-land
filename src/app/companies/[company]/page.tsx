@@ -14,7 +14,12 @@ import Link from "next/link";
 import type { Disposition } from "@/lib/types";
 import type { HoldingsSummary } from "@/lib/tenure";
 import { openReadOnly } from "@/lib/db/client";
-import { companyHoldingsSummary, listByCompany } from "@/lib/db/queries";
+import {
+  companyBounds,
+  companyHoldingsSummary,
+  listByCompany,
+  type ViewportBbox,
+} from "@/lib/db/queries";
 import { CompanyProfile } from "@/components/CompanyProfile";
 import { MapExplorer } from "@/components/MapExplorer";
 
@@ -43,6 +48,7 @@ export default async function CompanyPage({
 
   let holdings: Disposition[] = [];
   let summary: HoldingsSummary = { agreements: 0, parcels: 0 };
+  let bounds: ViewportBbox | null = null;
   let page = 1;
   let pageCount = 1;
   let dbError = false;
@@ -50,6 +56,7 @@ export default async function CompanyPage({
     const db = openReadOnly();
     try {
       summary = companyHoldingsSummary(db, name);
+      bounds = companyBounds(db, name);
       pageCount = Math.max(1, Math.ceil(summary.parcels / PAGE_SIZE));
       // Clamp: a hand-typed ?page=999 lands on the last page, never a blank table.
       page = Math.min(parsePage(sp.page), pageCount);
@@ -99,6 +106,7 @@ export default async function CompanyPage({
               min-h shell (see app/map/page.tsx). */}
           <MapExplorer
             company={name}
+            initialBounds={bounds ?? undefined}
             className="mt-2 h-[28rem] w-full overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-800"
           />
         </section>
