@@ -52,5 +52,5 @@ _Last updated: 2026-07-04 · `main` @ `16a4f34`_
 
 - ✅ **CI** — GitHub Actions (`.github/workflows/ci.yml`): `npm ci → lint → typecheck → test → build` on every PR and push to `main` (Node 24).
 - ✅ **Test suites (8)** — ATS parsing (`ats`), company matching (`company_names`, `company_aliases`), spatial helpers (`geo`, `ats_grid`, `ats_search`), basemap config (`basemap`), offline minerals ingest (`ingest_minerals`).
-- 🔨 **Route-handler tests** — the map handlers (`/api/map/{features,centroids}`) now have tests against a temp SQLite fixture (`api_map.test.ts`); the original 3 (`search`, `holdings/[id]`, `companies/[name]`) are still untested.
+- ✅ **Route-handler tests** — all 5 API handlers covered against temp SQLite fixtures: map handlers in `api_map.test.ts`, and `search` / `holdings/[id]` / `companies/[name]` in `api_routes.test.ts` (FTS company search, agreement prefix, route-level ATS auto-detection, 400s, summary-vs-full-geometry contracts).
 - ⬜ **Dependency hygiene** — 2 moderate postcss advisories inside Next's build toolchain are accepted (build-time only, single-user local app). Never `npm audit fix --force` (see memory `ab-land-npm-audit-fix-force`); revisit when Next bumps its bundled postcss.
