@@ -1,6 +1,7 @@
 /**
- * GET /api/map/centroids — every parcel centroid as a lean array, for the
- * clustered province-wide map overview.
+ * GET /api/map/centroids — every parcel centroid as a GeoJSON FeatureCollection
+ * of lean points. The shape is a valid MapLibre geojson-source URL target, so
+ * the map worker fetches, parses, and clusters it off the main thread.
  *
  * @module app/api/map/centroids/route
  * Data source: local SQLite (read-only)
@@ -11,6 +12,7 @@ import type { NextRequest } from "next/server";
 import { MapCentroidsParams } from "@/lib/schemas";
 import { openReadOnly } from "@/lib/db/client";
 import { centroidsAll } from "@/lib/db/queries";
+import { centroidsToFeatureCollection } from "@/lib/map/geojson";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +42,7 @@ export function GET(req: NextRequest) {
 
   try {
     const { families, company } = parsed.data;
-    return NextResponse.json({ centroids: centroidsAll(db, { families, company }) });
+    return NextResponse.json(centroidsToFeatureCollection(centroidsAll(db, { families, company })));
   } finally {
     db.close();
   }

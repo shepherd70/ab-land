@@ -9,7 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { applySchema, openDb, type DB } from "../lib/db/client";
 import { prepareUpsert } from "../lib/ingest/upsert";
-import { centroidsAll, featuresInViewport } from "../lib/db/queries";
+import { centroidsAll, companyBounds, featuresInViewport } from "../lib/db/queries";
 import { normalizeCompanyName } from "../lib/matching/company_names";
 import type { Disposition, MineralFamily } from "../lib/types";
 
@@ -99,5 +99,16 @@ describe("centroidsAll", () => {
   it("filters by company across the whole province", () => {
     const rows = centroidsAll(db, { company: "acme energy" });
     expect(rows.map((r) => r.agreementNumber).sort()).toEqual(["0500001", "0500003"]);
+  });
+});
+
+describe("companyBounds", () => {
+  it("merges the bboxes of every holding (suffix variant matches)", () => {
+    // ACME holds 0500001 at [-114, 51] and 0500003 at [-113, 57], ±0.01 each.
+    expect(companyBounds(db, "Acme Energy Ltd.")).toEqual([-114.01, 50.99, -112.99, 57.01]);
+  });
+
+  it("returns null for an unmatched holder", () => {
+    expect(companyBounds(db, "Nonexistent Corp")).toBeNull();
   });
 });

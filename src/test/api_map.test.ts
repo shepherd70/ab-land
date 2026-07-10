@@ -12,7 +12,7 @@ import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { NextRequest } from "next/server";
-import type { FeatureCollection } from "geojson";
+import type { FeatureCollection, Point } from "geojson";
 import type { MapCentroid } from "@/lib/types";
 
 const DB_FILE = join(tmpdir(), `ab-land-api-map-${process.pid}.sqlite`);
@@ -62,20 +62,29 @@ afterAll(() => {
   vi.resetModules();
 });
 
+/** The lean centroid-point contract served for worker-side clustering. */
+type CentroidFC = FeatureCollection<Point, { id: number; family: string }>;
+
 describe("GET /api/map/centroids", () => {
-  it("returns every centroid", async () => {
+  it("returns every centroid as a lean GeoJSON point feature", async () => {
     const { GET } = await import("@/app/api/map/centroids/route");
     const res = GET(new NextRequest("http://test/api/map/centroids"));
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { centroids: MapCentroid[] };
-    expect(body.centroids.map((c) => c.agreementNumber).sort()).toEqual(["0500001", "0500003"]);
+    const fc = (await res.json()) as CentroidFC;
+    expect(fc.type).toBe("FeatureCollection");
+    expect(fc.features.map((f) => f.properties.family).sort()).toEqual(["geothermal", "png"]);
+    const png = fc.features.find((f) => f.properties.family === "png")!;
+    expect(png.geometry).toEqual({ type: "Point", coordinates: [-114.0, 51.0] });
+    expect(typeof png.properties.id).toBe("number");
+    // Lean contract: nothing beyond what the map layers read.
+    expect(Object.keys(png.properties).sort()).toEqual(["family", "id"]);
   });
 
   it("filters by family", async () => {
     const { GET } = await import("@/app/api/map/centroids/route");
     const res = GET(new NextRequest("http://test/api/map/centroids?families=geothermal"));
-    const body = (await res.json()) as { centroids: MapCentroid[] };
-    expect(body.centroids.map((c) => c.agreementNumber)).toEqual(["0500003"]);
+    const fc = (await res.json()) as CentroidFC;
+    expect(fc.features.map((f) => f.properties.family)).toEqual(["geothermal"]);
   });
 
   it("filters by company (name-variant match via normalization)", async () => {
@@ -83,8 +92,11 @@ describe("GET /api/map/centroids", () => {
     const res = GET(
       new NextRequest("http://test/api/map/centroids?company=Acme%20Energy%20Ltd."),
     );
-    const body = (await res.json()) as { centroids: MapCentroid[] };
-    expect(body.centroids.map((c) => c.agreementNumber)).toEqual(["0500001"]);
+    const fc = (await res.json()) as CentroidFC;
+    expect(fc.features).toHaveLength(1);
+    // The seeded ACME parcel is the PNG one at [-114, 51].
+    expect(fc.features[0].properties.family).toBe("png");
+    expect(fc.features[0].geometry.coordinates).toEqual([-114.0, 51.0]);
   });
 });
 

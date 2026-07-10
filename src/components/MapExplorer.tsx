@@ -1,9 +1,10 @@
 /**
- * Province-wide interactive tenure explorer. Ships ~77k parcel centroids and
- * clusters them client-side for the overview; on zoom-in it fetches only the
- * polygons in the current viewport (debounced) from /api/map/features. Parcels
- * are colored by mineral family and clickable for a detail popup that drills
- * through to the holding page.
+ * Province-wide interactive tenure explorer. The clustered overview is a
+ * GeoJSON source pointed at the /api/map/centroids URL, so MapLibre's worker
+ * fetches, parses, and clusters the ~77k points off the main thread; on
+ * zoom-in it fetches only the polygons in the current viewport (debounced)
+ * from /api/map/features. Parcels are colored by mineral family and clickable
+ * for a detail popup that drills through to the holding page.
  *
  * @module components/MapExplorer
  * Data source: /api/map/centroids + /api/map/features (read local SQLite);
@@ -21,7 +22,7 @@ import type {
 } from "maplibre-gl";
 import type { FeatureCollection } from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { boundsOfFeatureCollection, getBasemapStyle } from "@/lib/map/basemap";
+import { getBasemapStyle } from "@/lib/map/basemap";
 import {
   FAMILY_STYLES,
   MINERAL_FAMILIES,
@@ -29,7 +30,7 @@ import {
   familyLabel,
 } from "@/lib/map/families";
 import { formatAgreementType, formatExpiry } from "@/lib/tenure";
-import type { MapCentroid, MineralFamily } from "@/lib/types";
+import type { MineralFamily } from "@/lib/types";
 
 /** Province-wide default view. */
 const ALBERTA_CENTER: [number, number] = [-114.5, 54.5];
@@ -42,6 +43,8 @@ const ATTRIBUTION = "Tenure data © Government of Alberta (OGL–Alberta)";
 const CENTROIDS_SRC = "centroids";
 const POLYS_SRC = "viewport-polys";
 
+const EMPTY_FC: FeatureCollection = { type: "FeatureCollection", features: [] };
+
 /** Escape a string for safe injection into popup HTML (untrusted DB data). */
 function escapeHtml(v: unknown): string {
   return String(v ?? "")
@@ -52,23 +55,19 @@ function escapeHtml(v: unknown): string {
     .replace(/'/g, "&#39;");
 }
 
-/** Build the clustered point FeatureCollection, filtered to the active families. */
-function buildCentroidFC(centroids: MapCentroid[], active: ReadonlySet<MineralFamily>): FeatureCollection {
-  return {
-    type: "FeatureCollection",
-    features: centroids
-      .filter((c) => active.has(c.family))
-      .map((c) => ({
-        type: "Feature",
-        geometry: { type: "Point", coordinates: [c.lon, c.lat] },
-        properties: {
-          id: c.id,
-          family: c.family,
-          agreementNumber: c.agreementNumber,
-          status: c.status ?? null,
-        },
-      })),
-  };
+/**
+ * URL for the centroids GeoJSON source — MapLibre's worker fetches and parses
+ * it, so the payload never blocks the main thread. An empty `families` param
+ * means "no filter" server-side, so callers must special-case an empty
+ * selection with {@link EMPTY_FC} instead of calling this.
+ */
+function centroidsDataUrl(families: ReadonlySet<MineralFamily>, company?: string): string {
+  const params = new URLSearchParams();
+  if (families.size > 0 && families.size < MINERAL_FAMILIES.length)
+    params.set("families", [...families].join(","));
+  if (company) params.set("company", company);
+  const qs = params.toString();
+  return qs ? `/api/map/centroids?${qs}` : "/api/map/centroids";
 }
 
 /** Popup markup for a clicked viewport polygon. All DB strings are escaped. */
@@ -95,6 +94,7 @@ function popupHtml(props: Record<string, unknown>): string {
 export function MapExplorer({
   className,
   company,
+  initialBounds,
 }: {
   className?: string;
   /**
@@ -103,12 +103,19 @@ export function MapExplorer({
    * both data fetches capture the value; pass a stable string.
    */
   company?: string;
+  /**
+   * Frame the map on these [west, south, east, north] bounds at construction
+   * instead of the province default (used with `company` to open on the
+   * holdings without a province-view flash). Fixed per mount, like `company`.
+   */
+  initialBounds?: [number, number, number, number];
 }): React.ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
-  // Fixed per mount (see prop doc) — a ref keeps loadViewport non-reactive.
+  // Fixed per mount (see prop docs) — refs keep the map-creation effect and
+  // loadViewport non-reactive.
   const companyRef = useRef(company);
-  const centroidsRef = useRef<MapCentroid[]>([]);
+  const initialBoundsRef = useRef(initialBounds);
   const loadedRef = useRef(false);
   const filtersRef = useRef<{ families: Set<MineralFamily>; status: string }>({
     families: new Set(MINERAL_FAMILIES),
@@ -129,15 +136,22 @@ export function MapExplorer({
     if (!polys) return;
 
     if (map.getZoom() < MIN_POLY_ZOOM) {
-      polys.setData({ type: "FeatureCollection", features: [] });
+      polys.setData(EMPTY_FC);
       setHint("Zoom in to see parcels");
       return;
     }
     setHint(null);
 
+    const { families, status } = filtersRef.current;
+    // An empty families param would mean "no filter" server-side; an empty
+    // selection must clear the layer instead.
+    if (families.size === 0) {
+      polys.setData(EMPTY_FC);
+      return;
+    }
+
     const b = map.getBounds();
     const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(",");
-    const { families, status } = filtersRef.current;
     const params = new URLSearchParams({ bbox });
     if (families.size < MINERAL_FAMILIES.length) params.set("families", [...families].join(","));
     if (status) params.set("status", status);
@@ -178,6 +192,11 @@ export function MapExplorer({
         center: ALBERTA_CENTER,
         zoom: ALBERTA_ZOOM,
         attributionControl: false,
+        // Constructor bounds override center/zoom, so the right basemap tiles
+        // load first and there is no province-view flash.
+        ...(initialBoundsRef.current
+          ? { bounds: initialBoundsRef.current, fitBoundsOptions: { padding: 40, maxZoom: 10 } }
+          : {}),
       });
       mapRef.current = map;
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
@@ -185,32 +204,25 @@ export function MapExplorer({
 
       const colorExpr = familyColorMatchExpression() as unknown as ExpressionSpecification;
 
-      map.on("load", async () => {
+      // Worker-side failures fetching the centroids URL surface as source
+      // error events; a later successful content load clears the banner.
+      map.on("error", (e) => {
+        if ((e as { sourceId?: string }).sourceId === CENTROIDS_SRC)
+          setError("Failed to load map data.");
+      });
+      map.on("sourcedata", (e) => {
+        if (e.sourceId === CENTROIDS_SRC && e.sourceDataType === "content") setError(null);
+      });
+
+      map.on("load", () => {
         if (!map || cancelled) return;
 
         // Overview centroids: the whole province, or one company's holdings.
-        let centroids: MapCentroid[] = [];
-        try {
-          const scopedCompany = companyRef.current;
-          const centroidsUrl = scopedCompany
-            ? `/api/map/centroids?${new URLSearchParams({ company: scopedCompany }).toString()}`
-            : "/api/map/centroids";
-          const res = await fetch(centroidsUrl);
-          const body = (await res.json()) as { centroids?: MapCentroid[]; message?: string };
-          if (!res.ok) {
-            setError(body.message ?? "Failed to load map data.");
-          } else {
-            centroids = body.centroids ?? [];
-          }
-        } catch {
-          setError("Failed to load map data.");
-        }
-        if (cancelled) return;
-        centroidsRef.current = centroids;
-
+        // The source is a URL, so the fetch/parse/cluster pipeline runs in
+        // MapLibre's worker and the payload never touches the main thread.
         map.addSource(CENTROIDS_SRC, {
           type: "geojson",
-          data: buildCentroidFC(centroids, filtersRef.current.families),
+          data: centroidsDataUrl(filtersRef.current.families, companyRef.current),
           cluster: true,
           clusterRadius: 50,
           clusterMaxZoom: 13,
@@ -268,14 +280,6 @@ export function MapExplorer({
           source: POLYS_SRC,
           paint: { "line-color": colorExpr, "line-width": 1 },
         });
-
-        // Company mode: frame the holdings instead of the province default.
-        if (companyRef.current && centroids.length > 0) {
-          const bounds = boundsOfFeatureCollection(
-            buildCentroidFC(centroids, filtersRef.current.families),
-          );
-          if (bounds) map.fitBounds(bounds, { padding: 40, maxZoom: 10, duration: 0 });
-        }
 
         loadedRef.current = true;
         loadViewport();
@@ -362,8 +366,11 @@ export function MapExplorer({
     filtersRef.current = { families: active, status: filtersRef.current.status };
     const map = mapRef.current;
     if (!map || !loadedRef.current) return;
+    // New URL → the worker refetches and re-clusters; overlapping loads
+    // coalesce, last one wins. Empty selection = empty data (see
+    // centroidsDataUrl).
     (map.getSource(CENTROIDS_SRC) as GeoJSONSource | undefined)?.setData(
-      buildCentroidFC(centroidsRef.current, active),
+      active.size === 0 ? EMPTY_FC : centroidsDataUrl(active, companyRef.current),
     );
     loadViewport();
      
