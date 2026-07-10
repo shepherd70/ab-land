@@ -9,7 +9,7 @@
 
 **Legend:** ✅ done · 🔨 in progress · ⬜ queued · 💤 dormant (blocked on external input) · 🚫 out of scope
 
-_Last updated: 2026-07-10 · `main` @ `8db9b90`_
+_Last updated: 2026-07-10 · `main` @ `595e0a4`_
 
 ---
 
@@ -49,16 +49,24 @@ _Last updated: 2026-07-10 · `main` @ `8db9b90`_
   handler + its two tests rather than adding a size guard; resurrect from git if a
   scripting/export API is ever wanted.
 
+- ✅ **#13 — Map first paint off the main thread** — `/api/map/centroids` now serves GeoJSON and
+  `MapExplorer` hands MapLibre the *URL*, so the worker fetches/parses/clusters and the payload
+  never blocks the main thread (the old path did `res.json()` on 1.5–10 MB + built the
+  FeatureCollection client-side, twice in company mode). Verified live: CNRL profile worst
+  main-thread task **137 ms** (was a multi-second freeze that twice froze the tab); province
+  `/map` (~77k) stays interactive with one 798 ms task when the payload lands. Company maps now
+  frame at construction via server-side `companyBounds()` (merged parcel bboxes) — no province
+  flash. Rode along: unchecking every family used to send `families=""` (= no filter) so polygons
+  showed ALL families; both paths now short-circuit to an empty FeatureCollection. Deliberately
+  skipped `clusterMaxZoom`/`maxzoom` tuning — freeze fixed, tuning changes cluster visuals.
+
 ## 🔨 In progress
 
 - _(nothing active — `main` is clean and CI is green)_
 
 ## ⬜ Next up
 
-- ⬜ **Slow first paint of the map for huge holders.** Clustering ~15.5k centroids blocks the main
-  thread for several seconds on the CNRL profile (froze the tab twice while testing). Pre-existing,
-  independent of pagination — paging does *not* remount the map (verified: zero `/api/*` requests on
-  a page change). Consider `clusterMaxZoom`/worker tuning or a server-side cluster index.
+- _(empty — the queued work is the two Map follow-ups below)_
 
 ## ⬜ Map follow-ups
 
