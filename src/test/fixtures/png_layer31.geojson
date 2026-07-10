@@ -16,7 +16,7 @@
         ]
       },
       "properties": {
-        "AgreementType": "Petroleum and Natural Gas Agreement",
+        "AgreementType": "004",
         "AgreementNumber": "0512345",
         "Tract": "1",
         "Status": "Continued",
@@ -45,7 +45,7 @@
         ]
       },
       "properties": {
-        "AgreementType": "Petroleum and Natural Gas Agreement",
+        "AgreementType": "004",
         "AgreementNumber": "0512345",
         "Tract": "2",
         "Status": "Continued",
@@ -74,7 +74,7 @@
         ]
       },
       "properties": {
-        "AgreementType": "Petroleum and Natural Gas Agreement",
+        "AgreementType": "054",
         "AgreementNumber": "0698765",
         "Tract": "1",
         "Status": "Active",
