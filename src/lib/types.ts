@@ -25,8 +25,9 @@ export type Family = MineralFamily | "surface";
 
 /**
  * A lean centroid record for the province-wide map overview. One per parcel
- * with a known centroid; ~77k of these are shipped to the client and clustered
- * by MapLibre, so the shape is intentionally minimal.
+ * with a known centroid; /api/map/centroids serializes ~77k of these to a
+ * GeoJSON FeatureCollection that MapLibre's worker fetches and clusters, so
+ * the shape is intentionally minimal.
  */
 export interface MapCentroid {
   id: number;
