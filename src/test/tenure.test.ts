@@ -1,7 +1,7 @@
 /**
  * Tenure presentation semantics: AgreementType labels (incl. application
- * prefix and unknown-code fallbacks), the 9999 expiry sentinel, and per-family
- * substance labels. Offline.
+ * prefix and unknown-code fallbacks), the 9999/8888 expiry sentinels, and
+ * per-family substance labels. Offline.
  *
  * Agreement-vs-parcel counting now lives in SQL (`companyHoldingsSummary`); it
  * is covered against a real DB in `company_aliases.test.ts`.
@@ -67,6 +67,16 @@ describe("formatAgreementType", () => {
 describe("formatExpiry", () => {
   it("renders the 9999 sentinel as a continued agreement", () => {
     expect(formatExpiry("9999-12-31")).toBe("Continued / no expiry");
+  });
+
+  it("renders the 8888 sentinel as continued — live-verified to share the 9999 field profile", () => {
+    // 4,432 ACTIVE PNG parcels carry 8888-12-31; see formatExpiry TSDoc for
+    // the 2026-07-10 field verification against GeoView layer 31.
+    expect(formatExpiry("8888-12-31")).toBe("Continued / no expiry");
+  });
+
+  it("renders both sentinels identically so mixed-sentinel agreements do not claim variance", () => {
+    expect(formatExpiry("8888-12-31")).toBe(formatExpiry("9999-12-31"));
   });
 
   it("passes through a real date and falls back for null", () => {

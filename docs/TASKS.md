@@ -34,17 +34,21 @@ _Last updated: 2026-07-10 · `main` @ `f789553`_
   page can't be counted. CNRL went from **21.2 MB / 2.8 s TTFB → 0.15 MB / 0.19 s**. The map still
   covers every parcel (it reads `/api/map/*`, not the page rows).
 
+- ✅ **#11 — `8888-12-31` expiry sentinel** — field-verified live against GeoView layer 31
+  (2026-07-10): the 4,432 ACTIVE PNG parcels carrying `8888-12-31` share the exact field profile of
+  the verified-continued `9999` rows (past `ContinuationDate`, `ContinuationPending='N'`, empty
+  `CancelCode`), and no public GoA source distinguishes the sentinels (checked GeoView user manual,
+  GeoDiscover metadata, all ETS PNG-continuation guides). `formatExpiry` now renders both as
+  "Continued / no expiry"; `HoldingDetail` compares displayed expiry (not raw dates) so
+  mixed-sentinel agreements no longer claim "varies by tract". The 75%-vs-1% correlation with
+  multi-interval `ZoneDesc` is recorded as a correlate only — deliberately not labeled.
+
 ## 🔨 In progress
 
 - _(nothing active — `main` is clean and CI is green)_
 
 ## ⬜ Next up
 
-- ⬜ **`8888-12-31` expiry sentinel is unhandled.** `formatExpiry` maps only `9999-*` to
-  "Continued / no expiry"; **4,432 ACTIVE PNG parcels** carry `8888-12-31` and render as a literal
-  year-8888 date in the table, holding detail, and map popup. Every one of them has a
-  `continuation_date` set (same as the 9999 rows), so it looks like a second continued-sentinel —
-  but **field-verify against GeoView before labeling it** (per the §2 rule that burned us on `010`).
 - ⬜ **Slow first paint of the map for huge holders.** Clustering ~15.5k centroids blocks the main
   thread for several seconds on the CNRL profile (froze the tab twice while testing). Pre-existing,
   independent of pagination — paging does *not* remount the map (verified: zero `/api/*` requests on
