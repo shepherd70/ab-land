@@ -9,7 +9,7 @@
 
 **Legend:** ✅ done · 🔨 in progress · ⬜ queued · 💤 dormant (blocked on external input) · 🚫 out of scope
 
-_Last updated: 2026-07-04 · `main` @ `16a4f34`_
+_Last updated: 2026-07-10 · `main` @ `f789553`_
 
 ---
 
@@ -28,11 +28,31 @@ _Last updated: 2026-07-04 · `main` @ `16a4f34`_
   filter, indexed). Map fits to the company's holdings; clusters, family filters, and popups work on
   the filtered data; province `/map` unchanged.
 
+- ✅ **#10 — Company holdings pagination** — the profile table renders 100 rows per page
+  (`?page=N`, `Pagination.tsx`) instead of every parcel. `listByCompany` takes `{limit, offset}` with
+  a deterministic order; totals come from `companyHoldingsSummary` (SQL `COUNT(DISTINCT …)`) since a
+  page can't be counted. CNRL went from **21.2 MB / 2.8 s TTFB → 0.15 MB / 0.19 s**. The map still
+  covers every parcel (it reads `/api/map/*`, not the page rows).
+
 ## 🔨 In progress
 
 - _(nothing active — `main` is clean and CI is green)_
 
-## ⬜ Next up — map follow-ups
+## ⬜ Next up
+
+- ⬜ **`8888-12-31` expiry sentinel is unhandled.** `formatExpiry` maps only `9999-*` to
+  "Continued / no expiry"; **4,432 ACTIVE PNG parcels** carry `8888-12-31` and render as a literal
+  year-8888 date in the table, holding detail, and map popup. Every one of them has a
+  `continuation_date` set (same as the 9999 rows), so it looks like a second continued-sentinel —
+  but **field-verify against GeoView before labeling it** (per the §2 rule that burned us on `010`).
+- ⬜ **Slow first paint of the map for huge holders.** Clustering ~15.5k centroids blocks the main
+  thread for several seconds on the CNRL profile (froze the tab twice while testing). Pre-existing,
+  independent of pagination — paging does *not* remount the map (verified: zero `/api/*` requests on
+  a page change). Consider `clusterMaxZoom`/worker tuning or a server-side cluster index.
+- ⬜ **`/api/companies/[name]` has no size guard.** It still returns every row *with* geometry
+  (~23 MB for CNRL). Unused by the UI; add `limit`/`offset` or drop it.
+
+## ⬜ Map follow-ups
 
 - ⬜ **Simplified geometry column.** Giant parcels (max ~3.5 MB) are re-sent whole per viewport move;
   add an ingest-time simplified-geometry column if panning lags.
@@ -51,6 +71,6 @@ _Last updated: 2026-07-04 · `main` @ `16a4f34`_
 ## 🧱 Infra & quality
 
 - ✅ **CI** — GitHub Actions (`.github/workflows/ci.yml`): `npm ci → lint → typecheck → test → build` on every PR and push to `main` (Node 24).
-- ✅ **Test suites (8)** — ATS parsing (`ats`), company matching (`company_names`, `company_aliases`), spatial helpers (`geo`, `ats_grid`, `ats_search`), basemap config (`basemap`), offline minerals ingest (`ingest_minerals`).
+- ✅ **Test suites (8)** — ATS parsing (`ats`), company matching (`company_names`, `company_aliases` — now also covers `listByCompany` paging and `companyHoldingsSummary`), spatial helpers (`geo`, `ats_grid`, `ats_search`), basemap config (`basemap`), offline minerals ingest (`ingest_minerals`).
 - ✅ **Route-handler tests** — all 5 API handlers covered against temp SQLite fixtures: map handlers in `api_map.test.ts`, and `search` / `holdings/[id]` / `companies/[name]` in `api_routes.test.ts` (FTS company search, agreement prefix, route-level ATS auto-detection, 400s, summary-vs-full-geometry contracts).
 - ⬜ **Dependency hygiene** — 2 moderate postcss advisories inside Next's build toolchain are accepted (build-time only, single-user local app). Never `npm audit fix --force` (see memory `ab-land-npm-audit-fix-force`); revisit when Next bumps its bundled postcss.

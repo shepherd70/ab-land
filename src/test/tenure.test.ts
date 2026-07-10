@@ -1,7 +1,10 @@
 /**
  * Tenure presentation semantics: AgreementType labels (incl. application
- * prefix and unknown-code fallbacks), the 9999 expiry sentinel, per-family
- * substance labels, and agreement-vs-parcel holdings summaries. Offline.
+ * prefix and unknown-code fallbacks), the 9999 expiry sentinel, and per-family
+ * substance labels. Offline.
+ *
+ * Agreement-vs-parcel counting now lives in SQL (`companyHoldingsSummary`); it
+ * is covered against a real DB in `company_aliases.test.ts`.
  *
  * @module test/tenure
  * @see CLAUDE.md §10
@@ -11,10 +14,8 @@ import {
   agreementTypeLabel,
   formatAgreementType,
   formatExpiry,
-  summarizeHoldings,
   targetSubstanceLabel,
 } from "../lib/tenure";
-import type { Disposition } from "../lib/types";
 
 describe("agreementTypeLabel", () => {
   it("labels the verified PNG lease and licence codes by instrument and region", () => {
@@ -79,28 +80,5 @@ describe("targetSubstanceLabel", () => {
     expect(targetSubstanceLabel("coal")).toBe("Coal category (policy restriction)");
     expect(targetSubstanceLabel("minerals")).toBe("Target substance");
     expect(targetSubstanceLabel("brine")).toBe("Target substance");
-  });
-});
-
-describe("summarizeHoldings", () => {
-  const row = (agreementNumber: string, tract: string, family = "png"): Disposition => ({
-    source: "geoview",
-    family: family as Disposition["family"],
-    agreementNumber,
-    tract,
-  });
-
-  it("counts multi-tract agreements once while counting every parcel", () => {
-    const rows = [row("5495110028", "01"), row("5495110028", "02"), row("0500001", "01")];
-    expect(summarizeHoldings(rows)).toEqual({ agreements: 2, parcels: 3 });
-  });
-
-  it("treats the same number in different families as distinct agreements", () => {
-    const rows = [row("0700010", "01", "png"), row("0700010", "01", "oil_sands")];
-    expect(summarizeHoldings(rows)).toEqual({ agreements: 2, parcels: 2 });
-  });
-
-  it("handles the empty case", () => {
-    expect(summarizeHoldings([])).toEqual({ agreements: 0, parcels: 0 });
   });
 });
