@@ -24,7 +24,10 @@ export function HoldingDetail({ tracts }: { tracts: Disposition[] }) {
   const d = tracts[0];
   if (!d) return null;
   const multi = tracts.length > 1;
-  const expiryVaries = multi && new Set(tracts.map((t) => t.currentExpiryDate ?? "")).size > 1;
+  // Compare displayed values, not raw dates: an agreement whose tracts mix the
+  // 8888/9999 continued sentinels does not "vary" — every tract renders the
+  // same "Continued / no expiry".
+  const expiryVaries = multi && new Set(tracts.map((t) => formatExpiry(t.currentExpiryDate))).size > 1;
   const substance = tracts.find((t) => t.targetSubstance)?.targetSubstance;
 
   return (

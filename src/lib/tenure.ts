@@ -1,6 +1,6 @@
 /**
  * Tenure-domain presentation semantics: AgreementType code → label map, the
- * continued-expiry sentinel, per-family substance labeling, and holdings
+ * continued-expiry sentinels, per-family substance labeling, and holdings
  * summaries. Labels are display-layer only — the DB always keeps raw codes.
  *
  * @module lib/tenure
@@ -104,12 +104,24 @@ export function formatAgreementType(
 }
 
 /**
- * Render an expiry date for display. The live GeoView data uses `9999-12-31`
- * (and other `9999-…` values) as a sentinel for continued / no-expiry
- * agreements — show that intent rather than a literal far-future date.
+ * Render an expiry date for display. The live GeoView data uses TWO far-future
+ * sentinels in `CurrentExpiryDate` instead of a real date: `9999-12-31`
+ * (~58.6k parcels, all families) and `8888-12-31` (4,432 parcels, all PNG).
+ *
+ * Field-verified live against layer 31 (2026-07-10): 8888 rows carry the exact
+ * field profile of the 9999 continued rows — Status ACTIVE, past
+ * `ContinuationDate`, `ContinuationPending='N'`, empty `CancelCode` — and no
+ * public GoA document distinguishes the two (checked: GeoView user manual,
+ * GeoDiscover metadata, ETS PNG-continuation guides). Both therefore render
+ * the shared verified meaning: continued, no fixed expiry on record. 8888 rows
+ * correlate with multi-interval `ZoneDesc` (75% vs 1% of 9999) but that is a
+ * correlate, not a documented definition — do not label the sentinels
+ * differently without a GoA source.
  */
 export function formatExpiry(v?: string | null): string {
-  return v?.startsWith("9999") ? "Continued / no expiry" : (v ?? "—");
+  return v && (v.startsWith("9999") || v.startsWith("8888"))
+    ? "Continued / no expiry"
+    : (v ?? "—");
 }
 
 /**
