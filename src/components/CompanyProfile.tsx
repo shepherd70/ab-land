@@ -10,6 +10,7 @@
 import type { Disposition } from "@/lib/types";
 import { summarizeHoldings } from "@/lib/tenure";
 import { ResultsTable } from "@/components/ResultsTable";
+import { CompanyMap } from "@/components/CompanyMap";
 
 export function CompanyProfile({ name, holdings }: { name: string; holdings: Disposition[] }) {
   const { agreements, parcels } = summarizeHoldings(holdings);
@@ -20,6 +21,11 @@ export function CompanyProfile({ name, holdings }: { name: string; holdings: Dis
         {agreements} agreement(s) across {parcels} parcel(s) — heuristic name match, not an
         authoritative ownership record.
       </p>
+      {holdings.length > 0 && (
+        <div className="mt-4">
+          <CompanyMap company={name} />
+        </div>
+      )}
       <div className="mt-4">
         <ResultsTable rows={holdings} />
       </div>

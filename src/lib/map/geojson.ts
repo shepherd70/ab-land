@@ -30,3 +30,25 @@ export function dispositionsToFeatureCollection(
   }
   return { type: "FeatureCollection", features };
 }
+
+/**
+ * Build a Point FeatureCollection from the precomputed parcel centroids,
+ * dropping any row without one. Used when a holder's full polygons exceed the
+ * payload budget (see lib/map/company_features) — same `pickProps` contract as
+ * {@link dispositionsToFeatureCollection}.
+ */
+export function dispositionsToCentroidFeatureCollection(
+  rows: Disposition[],
+  pickProps: (d: Disposition) => Record<string, unknown>,
+): FeatureCollection {
+  const features: Feature[] = [];
+  for (const d of rows) {
+    if (!d.centroid) continue;
+    features.push({
+      type: "Feature",
+      properties: pickProps(d),
+      geometry: { type: "Point", coordinates: d.centroid },
+    });
+  }
+  return { type: "FeatureCollection", features };
+}

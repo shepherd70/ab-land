@@ -121,3 +121,18 @@ export type MapFeaturesParams = z.infer<typeof MapFeaturesParams>;
 /** Query parameters for GET /api/map/centroids. */
 export const MapCentroidsParams = z.object({ families: FamiliesCsv });
 export type MapCentroidsParams = z.infer<typeof MapCentroidsParams>;
+
+/**
+ * Query parameters for GET /api/companies/:name/features. `budget` overrides
+ * the stored-geometry byte budget that flips the response from polygons to
+ * centroids (defaults to DEFAULT_GEOMETRY_BYTE_BUDGET) — a test/tuning hook.
+ */
+export const CompanyFeaturesParams = z.object({
+  budget: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(64 * 1024 * 1024)
+    .optional(),
+});
+export type CompanyFeaturesParams = z.infer<typeof CompanyFeaturesParams>;

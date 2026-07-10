@@ -26,9 +26,8 @@ import {
   FAMILY_STYLES,
   MINERAL_FAMILIES,
   familyColorMatchExpression,
-  familyLabel,
 } from "@/lib/map/families";
-import { formatAgreementType, formatExpiry } from "@/lib/tenure";
+import { popupHtml } from "@/lib/map/popup";
 import type { MapCentroid, MineralFamily } from "@/lib/types";
 
 /** Province-wide default view. */
@@ -41,16 +40,6 @@ const ATTRIBUTION = "Tenure data © Government of Alberta (OGL–Alberta)";
 
 const CENTROIDS_SRC = "centroids";
 const POLYS_SRC = "viewport-polys";
-
-/** Escape a string for safe injection into popup HTML (untrusted DB data). */
-function escapeHtml(v: unknown): string {
-  return String(v ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 /** Build the clustered point FeatureCollection, filtered to the active families. */
 function buildCentroidFC(centroids: MapCentroid[], active: ReadonlySet<MineralFamily>): FeatureCollection {
@@ -69,27 +58,6 @@ function buildCentroidFC(centroids: MapCentroid[], active: ReadonlySet<MineralFa
         },
       })),
   };
-}
-
-/** Popup markup for a clicked viewport polygon. All DB strings are escaped. */
-function popupHtml(props: Record<string, unknown>): string {
-  const agreement = String(props.agreementNumber ?? "");
-  const href = `/holdings/${encodeURIComponent(agreement)}`;
-  const rows: string[] = [];
-  if (props.agreementType)
-    rows.push(`<div>Type: ${escapeHtml(formatAgreementType(props.agreementType as string))}</div>`);
-  if (props.status) rows.push(`<div>Status: ${escapeHtml(props.status)}</div>`);
-  rows.push(`<div>Expiry: ${escapeHtml(formatExpiry(props.currentExpiryDate as string | null))}</div>`);
-  if (props.areaHa != null) rows.push(`<div>${escapeHtml(props.areaHa)} ha</div>`);
-  return `
-    <div class="text-xs leading-5">
-      <div class="font-semibold">${escapeHtml(familyLabel(String(props.family ?? "")))}</div>
-      <div class="text-zinc-500">Agreement ${escapeHtml(agreement)}${
-        props.tract ? `-${escapeHtml(props.tract)}` : ""
-      }</div>
-      ${rows.join("")}
-      <a href="${href}" class="mt-1 inline-block font-medium underline">View holding →</a>
-    </div>`;
 }
 
 export function MapExplorer({ className }: { className?: string }): React.ReactElement {

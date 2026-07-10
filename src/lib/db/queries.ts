@@ -255,3 +255,24 @@ export function listByCompany(db: DB, company: string, withGeometry = false): Di
     .all(...keys) as DbRow[];
   return rows.map(rowToDisposition);
 }
+
+/**
+ * Parcel count + total stored polygon-GeoJSON bytes for a company (same
+ * alias-broadened matching as {@link listByCompany}). Lets the company-map
+ * route pick polygons vs centroids WITHOUT pulling geometry — the worst holder
+ * stores ~23 MB of polygons, which must never be fetched just to be refused.
+ */
+export function companyGeometryStats(
+  db: DB,
+  company: string,
+): { parcels: number; geometryBytes: number } {
+  const keys = aliasGroupKeys(normalizeCompanyName(company));
+  const placeholders = keys.map(() => "?").join(", ");
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS parcels, COALESCE(SUM(LENGTH(geometry_geojson)), 0) AS bytes
+       FROM dispositions WHERE holder_norm IN (${placeholders})`,
+    )
+    .get(...keys) as { parcels: number; bytes: number };
+  return { parcels: row.parcels, geometryBytes: row.bytes };
+}
