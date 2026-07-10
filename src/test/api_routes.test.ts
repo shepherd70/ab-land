@@ -1,6 +1,6 @@
 /**
- * Route-handler tests for the original three APIs (search, holdings/[id],
- * companies/[name]) against a temp-file SQLite fixture. The handlers open
+ * Route-handler tests for the search and holdings/[id] APIs against a
+ * temp-file SQLite fixture. The handlers open
  * their own read-only connection to DEFAULT_DB_PATH, frozen at client-module
  * import time — so DB_PATH is set before dynamic import(), same pattern as
  * api_map.test.ts. Offline.
@@ -141,29 +141,6 @@ describe("GET /api/holdings/[id]", () => {
     const { GET } = await import("@/app/api/holdings/[id]/route");
     const res = await GET(new Request("http://test/api/holdings/9999999"), {
       params: Promise.resolve({ id: "9999999" }),
-    });
-    const body = (await res.json()) as { holdings: Disposition[] };
-    expect(body.holdings).toEqual([]);
-  });
-});
-
-describe("GET /api/companies/[name]", () => {
-  it("matches a suffix-variant company name and includes geometry", async () => {
-    const { GET } = await import("@/app/api/companies/[name]/route");
-    const res = await GET(new Request("http://test/api/companies/Acme%20Energy%20Ltd."), {
-      params: Promise.resolve({ name: "Acme%20Energy%20Ltd." }),
-    });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { holdings: Disposition[] };
-    expect(body.holdings).toHaveLength(2);
-    expect(body.holdings.every((h) => h.agreementNumber === "0512345")).toBe(true);
-    expect(body.holdings.every((h) => typeof h.geometryGeoJSON === "string")).toBe(true);
-  });
-
-  it("returns an empty list for an unmatched holder", async () => {
-    const { GET } = await import("@/app/api/companies/[name]/route");
-    const res = await GET(new Request("http://test/api/companies/Nonexistent%20Corp"), {
-      params: Promise.resolve({ name: "Nonexistent Corp" }),
     });
     const body = (await res.json()) as { holdings: Disposition[] };
     expect(body.holdings).toEqual([]);

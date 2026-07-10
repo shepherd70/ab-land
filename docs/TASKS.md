@@ -43,6 +43,12 @@ _Last updated: 2026-07-10 · `main` @ `8db9b90`_
   mixed-sentinel agreements no longer claim "varies by tract". The 75%-vs-1% correlation with
   multi-interval `ZoneDesc` is recorded as a correlate only — deliberately not labeled.
 
+- ✅ **#12 — Dropped the orphaned `/api/companies/[name]` route** — it returned every holding
+  *with* geometry (~23 MB for CNRL) and nothing called it: since PR #15 the profile page queries
+  SQLite directly (`listByCompany` paged, no geometry) and the map uses `/api/map/*`. Deleted the
+  handler + its two tests rather than adding a size guard; resurrect from git if a
+  scripting/export API is ever wanted.
+
 ## 🔨 In progress
 
 - _(nothing active — `main` is clean and CI is green)_
@@ -53,8 +59,6 @@ _Last updated: 2026-07-10 · `main` @ `8db9b90`_
   thread for several seconds on the CNRL profile (froze the tab twice while testing). Pre-existing,
   independent of pagination — paging does *not* remount the map (verified: zero `/api/*` requests on
   a page change). Consider `clusterMaxZoom`/worker tuning or a server-side cluster index.
-- ⬜ **`/api/companies/[name]` has no size guard.** It still returns every row *with* geometry
-  (~23 MB for CNRL). Unused by the UI; add `limit`/`offset` or drop it.
 
 ## ⬜ Map follow-ups
 
@@ -76,5 +80,5 @@ _Last updated: 2026-07-10 · `main` @ `8db9b90`_
 
 - ✅ **CI** — GitHub Actions (`.github/workflows/ci.yml`): `npm ci → lint → typecheck → test → build` on every PR and push to `main` (Node 24).
 - ✅ **Test suites (8)** — ATS parsing (`ats`), company matching (`company_names`, `company_aliases` — now also covers `listByCompany` paging and `companyHoldingsSummary`), spatial helpers (`geo`, `ats_grid`, `ats_search`), basemap config (`basemap`), offline minerals ingest (`ingest_minerals`).
-- ✅ **Route-handler tests** — all 5 API handlers covered against temp SQLite fixtures: map handlers in `api_map.test.ts`, and `search` / `holdings/[id]` / `companies/[name]` in `api_routes.test.ts` (FTS company search, agreement prefix, route-level ATS auto-detection, 400s, summary-vs-full-geometry contracts).
+- ✅ **Route-handler tests** — all 4 API handlers covered against temp SQLite fixtures: map handlers in `api_map.test.ts`, and `search` / `holdings/[id]` in `api_routes.test.ts` (FTS company search, agreement prefix, route-level ATS auto-detection, 400s, summary-vs-full-geometry contracts).
 - ⬜ **Dependency hygiene** — 2 moderate postcss advisories inside Next's build toolchain are accepted (build-time only, single-user local app). Never `npm audit fix --force` (see memory `ab-land-npm-audit-fix-force`); revisit when Next bumps its bundled postcss.
