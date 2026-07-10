@@ -9,7 +9,7 @@
 
 **Legend:** ✅ done · 🔨 in progress · ⬜ queued · 💤 dormant (blocked on external input) · 🚫 out of scope
 
-_Last updated: 2026-07-10 · `main` @ `f789553`_
+_Last updated: 2026-07-10 · `main` @ `8db9b90`_
 
 ---
 
