@@ -10,7 +10,7 @@
  *   analysis; see PR notes.
  * @see CLAUDE.md §2, §5
  */
-import type { Disposition, Family } from "./types";
+import type { Family } from "./types";
 
 /**
  * AgreementType code → human label.
@@ -122,22 +122,15 @@ export function targetSubstanceLabel(family: Family): string {
   return family === "coal" ? "Coal category (policy restriction)" : "Target substance";
 }
 
-/** Agreement-level vs parcel-level counts for a set of disposition rows. */
+/**
+ * Agreement-level vs parcel-level counts for a company's holdings. One
+ * agreement can span several tracts (natural key source+number+tract), so
+ * "N agreements" must never be read off the row count. Computed in SQL over
+ * every matching row — see `companyHoldingsSummary` in lib/db/queries.
+ */
 export interface HoldingsSummary {
   /** Distinct agreements: unique (source, family, agreement_number). */
   agreements: number;
   /** Raw rows — one per tract/parcel. */
   parcels: number;
-}
-
-/**
- * Summarize rows that may contain several tracts of the same agreement. One
- * agreement can span multiple tracts (natural key source+number+tract), so
- * "N holdings" must never be read off the row count.
- */
-export function summarizeHoldings(rows: Disposition[]): HoldingsSummary {
-  const agreements = new Set(
-    rows.map((r) => `${r.source}/${r.family}/${r.agreementNumber}`),
-  );
-  return { agreements: agreements.size, parcels: rows.length };
 }

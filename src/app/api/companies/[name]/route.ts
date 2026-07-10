@@ -22,7 +22,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ name: s
   }
 
   try {
-    return NextResponse.json({ holdings: listByCompany(db, decodeURIComponent(name), true) });
+    return NextResponse.json({
+      holdings: listByCompany(db, decodeURIComponent(name), { withGeometry: true }),
+    });
   } finally {
     db.close();
   }

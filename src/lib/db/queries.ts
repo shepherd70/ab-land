@@ -9,6 +9,7 @@
 import type { DB } from "./client";
 import type { Disposition, MapCentroid, MineralFamily } from "../types";
 import type { SearchParams } from "../schemas";
+import type { HoldingsSummary } from "../tenure";
 import { normalizeCompanyName } from "../matching/company_names";
 import { aliasGroupKeys } from "../matching/company_aliases";
 import { parseAts, type AtsLocation } from "../ats";
@@ -162,6 +163,24 @@ export function getByAgreementNumber(db: DB, agreementNumber: string): Dispositi
   return rows.map(rowToDisposition);
 }
 
+/**
+ * An alias-expanded `<column> IN (…)` fragment restricting rows to one
+ * company's holdings, plus the values to bind. Broadened to known
+ * alias/predecessor names — heuristic, never authoritative ownership
+ * (see lib/matching/company_aliases).
+ */
+function holderNormClause(
+  company: string,
+  column: string,
+  prefix = "holder",
+): { clause: string; bind: Record<string, unknown> } {
+  const keys = aliasGroupKeys(normalizeCompanyName(company));
+  const bind: Record<string, unknown> = {};
+  keys.forEach((k, i) => (bind[`${prefix}${i}`] = k));
+  const placeholders = keys.map((_, i) => `@${prefix}${i}`).join(", ");
+  return { clause: `${column} IN (${placeholders})`, bind };
+}
+
 /** A [minX, minY, maxX, maxY] viewport in WGS84. */
 export type ViewportBbox = [number, number, number, number];
 
@@ -199,10 +218,9 @@ export function featuresInViewport(
     bind.status = status;
   }
   if (company) {
-    const keys = aliasGroupKeys(normalizeCompanyName(company));
-    const placeholders = keys.map((_, i) => `@holder${i}`).join(", ");
-    clauses.push(`d.holder_norm IN (${placeholders})`);
-    keys.forEach((k, i) => (bind[`holder${i}`] = k));
+    const holder = holderNormClause(company, "d.holder_norm");
+    clauses.push(holder.clause);
+    Object.assign(bind, holder.bind);
   }
   const sql = `SELECT d.* FROM dispositions d
     JOIN dispositions_rtree r ON r.id = d.id
@@ -229,10 +247,9 @@ export function centroidsAll(
     families.forEach((f, i) => (bind[`family${i}`] = f));
   }
   if (company) {
-    const keys = aliasGroupKeys(normalizeCompanyName(company));
-    const placeholders = keys.map((_, i) => `@holder${i}`).join(", ");
-    clauses.push(`holder_norm IN (${placeholders})`);
-    keys.forEach((k, i) => (bind[`holder${i}`] = k));
+    const holder = holderNormClause(company, "holder_norm");
+    clauses.push(holder.clause);
+    Object.assign(bind, holder.bind);
   }
   const sql = `SELECT id, centroid_lon AS lon, centroid_lat AS lat, family, agreement_number, status
     FROM dispositions
@@ -256,20 +273,59 @@ export function centroidsAll(
   }));
 }
 
+/** Options for {@link listByCompany}. */
+export interface CompanyHoldingsOpts {
+  /** Include the stored polygon GeoJSON. Large holders store tens of MB. */
+  withGeometry?: boolean;
+  /** Page size. Omit for every row — only safe when the caller bounds the output. */
+  limit?: number;
+  /** Rows to skip; requires `limit`. */
+  offset?: number;
+}
+
 /**
- * All holdings whose normalized holder key matches the company query, broadened
- * to include known alias/predecessor names for the same entity (heuristic — see
+ * Holdings whose normalized holder key matches the company query, broadened to
+ * include known alias/predecessor names for the same entity (heuristic — see
  * lib/matching/company_aliases).
+ *
+ * Pass `limit` to page: the largest holder has ~15.5k parcels, and rendering
+ * them all produced a 21 MB HTML document. Ordering is deterministic (id breaks
+ * ties) so pages never overlap or drop a row.
  */
-export function listByCompany(db: DB, company: string, withGeometry = false): Disposition[] {
+export function listByCompany(
+  db: DB,
+  company: string,
+  opts: CompanyHoldingsOpts = {},
+): Disposition[] {
+  const { withGeometry = false, limit, offset = 0 } = opts;
   const cols = withGeometry ? "d.*" : SUMMARY_COLS;
-  const keys = aliasGroupKeys(normalizeCompanyName(company));
-  const placeholders = keys.map(() => "?").join(", ");
+  const { clause, bind } = holderNormClause(company, "d.holder_norm");
+  const page = limit == null ? "" : "LIMIT @limit OFFSET @offset";
+  if (limit != null) Object.assign(bind, { limit, offset });
   const rows = db
     .prepare(
-      `SELECT ${cols} FROM dispositions d WHERE d.holder_norm IN (${placeholders})
-       ORDER BY d.agreement_number, d.tract`,
+      `SELECT ${cols} FROM dispositions d WHERE ${clause}
+       ORDER BY d.agreement_number, d.tract, d.id ${page}`,
     )
-    .all(...keys) as DbRow[];
+    .all(bind) as DbRow[];
   return rows.map(rowToDisposition);
+}
+
+/**
+ * Agreement- and parcel-level totals for a company, counted in SQL over every
+ * matching row. The company page renders one page of holdings, so these totals
+ * cannot be derived from the rows it holds. One agreement can span several
+ * tracts, so "N agreements" is a DISTINCT count of the natural key's
+ * (source, family, agreement_number) — never the row count.
+ */
+export function companyHoldingsSummary(db: DB, company: string): HoldingsSummary {
+  const { clause, bind } = holderNormClause(company, "holder_norm");
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS parcels,
+              COUNT(DISTINCT source || '/' || family || '/' || agreement_number) AS agreements
+       FROM dispositions WHERE ${clause}`,
+    )
+    .get(bind) as { parcels: number; agreements: number };
+  return { agreements: row.agreements, parcels: row.parcels };
 }
