@@ -18,6 +18,7 @@ export function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const parsed = MapCentroidsParams.safeParse({
     families: sp.get("families") ?? undefined,
+    company: sp.get("company") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -38,7 +39,8 @@ export function GET(req: NextRequest) {
   }
 
   try {
-    return NextResponse.json({ centroids: centroidsAll(db, { families: parsed.data.families }) });
+    const { families, company } = parsed.data;
+    return NextResponse.json({ centroids: centroidsAll(db, { families, company }) });
   } finally {
     db.close();
   }

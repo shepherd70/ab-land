@@ -21,6 +21,7 @@ export function GET(req: NextRequest) {
     bbox: sp.get("bbox") ?? "",
     families: sp.get("families") ?? undefined,
     status: sp.get("status") ?? undefined,
+    company: sp.get("company") ?? undefined,
     limit: sp.get("limit") ?? undefined,
   });
 
@@ -42,8 +43,8 @@ export function GET(req: NextRequest) {
   }
 
   try {
-    const { bbox, families, status, limit } = parsed.data;
-    const rows = featuresInViewport(db, bbox, { families, status, limit });
+    const { bbox, families, status, company, limit } = parsed.data;
+    const rows = featuresInViewport(db, bbox, { families, status, company, limit });
     const fc = dispositionsToFeatureCollection(rows, (d) => ({
       agreementNumber: d.agreementNumber,
       tract: d.tract ?? null,

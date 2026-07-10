@@ -21,7 +21,7 @@ import type {
 } from "maplibre-gl";
 import type { FeatureCollection } from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { getBasemapStyle } from "@/lib/map/basemap";
+import { boundsOfFeatureCollection, getBasemapStyle } from "@/lib/map/basemap";
 import {
   FAMILY_STYLES,
   MINERAL_FAMILIES,
@@ -92,9 +92,22 @@ function popupHtml(props: Record<string, unknown>): string {
     </div>`;
 }
 
-export function MapExplorer({ className }: { className?: string }): React.ReactElement {
+export function MapExplorer({
+  className,
+  company,
+}: {
+  className?: string;
+  /**
+   * Restrict the map to one company's holdings (alias-expanded heuristic match,
+   * same as the company profile). Fixed per mount — the map is created once and
+   * both data fetches capture the value; pass a stable string.
+   */
+  company?: string;
+}): React.ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
+  // Fixed per mount (see prop doc) — a ref keeps loadViewport non-reactive.
+  const companyRef = useRef(company);
   const centroidsRef = useRef<MapCentroid[]>([]);
   const loadedRef = useRef(false);
   const filtersRef = useRef<{ families: Set<MineralFamily>; status: string }>({
@@ -128,6 +141,7 @@ export function MapExplorer({ className }: { className?: string }): React.ReactE
     const params = new URLSearchParams({ bbox });
     if (families.size < MINERAL_FAMILIES.length) params.set("families", [...families].join(","));
     if (status) params.set("status", status);
+    if (companyRef.current) params.set("company", companyRef.current);
 
     abortRef.current?.abort();
     const ctrl = new AbortController();
@@ -174,10 +188,14 @@ export function MapExplorer({ className }: { className?: string }): React.ReactE
       map.on("load", async () => {
         if (!map || cancelled) return;
 
-        // Province overview: all centroids, clustered client-side.
+        // Overview centroids: the whole province, or one company's holdings.
         let centroids: MapCentroid[] = [];
         try {
-          const res = await fetch("/api/map/centroids");
+          const scopedCompany = companyRef.current;
+          const centroidsUrl = scopedCompany
+            ? `/api/map/centroids?${new URLSearchParams({ company: scopedCompany }).toString()}`
+            : "/api/map/centroids";
+          const res = await fetch(centroidsUrl);
           const body = (await res.json()) as { centroids?: MapCentroid[]; message?: string };
           if (!res.ok) {
             setError(body.message ?? "Failed to load map data.");
@@ -250,6 +268,14 @@ export function MapExplorer({ className }: { className?: string }): React.ReactE
           source: POLYS_SRC,
           paint: { "line-color": colorExpr, "line-width": 1 },
         });
+
+        // Company mode: frame the holdings instead of the province default.
+        if (companyRef.current && centroids.length > 0) {
+          const bounds = boundsOfFeatureCollection(
+            buildCentroidFC(centroids, filtersRef.current.families),
+          );
+          if (bounds) map.fitBounds(bounds, { padding: 40, maxZoom: 10, duration: 0 });
+        }
 
         loadedRef.current = true;
         loadViewport();

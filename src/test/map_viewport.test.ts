@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { applySchema, openDb, type DB } from "../lib/db/client";
 import { prepareUpsert } from "../lib/ingest/upsert";
 import { centroidsAll, featuresInViewport } from "../lib/db/queries";
+import { normalizeCompanyName } from "../lib/matching/company_names";
 import type { Disposition, MineralFamily } from "../lib/types";
 
 /** A parcel centered at [lon, lat] with a small square bbox. */
@@ -19,12 +20,15 @@ function parcel(
   family: MineralFamily,
   lon: number,
   lat: number,
+  holder?: string,
 ): Disposition {
   return {
     source: "geoview",
     family,
     agreementNumber,
     tract,
+    holderDesrep: holder,
+    holderNorm: holder ? normalizeCompanyName(holder) : undefined,
     centroid: [lon, lat],
     bbox: [lon - 0.01, lat - 0.01, lon + 0.01, lat + 0.01],
     ingestedAt: new Date().toISOString(),
@@ -37,11 +41,11 @@ beforeEach(() => {
   db = openDb(":memory:");
   applySchema(db);
   const upsert = prepareUpsert(db);
-  // Two PNG parcels near Calgary; one geothermal far north; a 2-tract oil_sands
-  // agreement, both tracts near Calgary.
-  upsert(parcel("0500001", "01", "png", -114.0, 51.0));
-  upsert(parcel("0500002", "01", "png", -114.1, 51.05));
-  upsert(parcel("0500003", "01", "geothermal", -113.0, 57.0));
+  // Two PNG parcels near Calgary (different holders); one geothermal far north;
+  // a 2-tract oil_sands agreement, both tracts near Calgary.
+  upsert(parcel("0500001", "01", "png", -114.0, 51.0, "ACME ENERGY LTD"));
+  upsert(parcel("0500002", "01", "png", -114.1, 51.05, "OTHER RESOURCES INC"));
+  upsert(parcel("0500003", "01", "geothermal", -113.0, 57.0, "ACME ENERGY LTD"));
   upsert(parcel("0700010", "01", "oil_sands", -114.05, 51.02));
   upsert(parcel("0700010", "02", "oil_sands", -114.06, 51.03));
 });
@@ -72,6 +76,11 @@ describe("featuresInViewport", () => {
     const hits = featuresInViewport(db, CALGARY, { families: ["png"] });
     expect(hits.map((d) => d.agreementNumber).sort()).toEqual(["0500001", "0500002"]);
   });
+
+  it("filters by company through name normalization (suffix variant matches)", () => {
+    const hits = featuresInViewport(db, CALGARY, { company: "Acme Energy Ltd." });
+    expect(hits.map((d) => d.agreementNumber)).toEqual(["0500001"]);
+  });
 });
 
 describe("centroidsAll", () => {
@@ -85,5 +94,10 @@ describe("centroidsAll", () => {
   it("filters by family", () => {
     const rows = centroidsAll(db, { families: ["geothermal"] });
     expect(rows.map((r) => r.agreementNumber)).toEqual(["0500003"]);
+  });
+
+  it("filters by company across the whole province", () => {
+    const rows = centroidsAll(db, { company: "acme energy" });
+    expect(rows.map((r) => r.agreementNumber).sort()).toEqual(["0500001", "0500003"]);
   });
 });

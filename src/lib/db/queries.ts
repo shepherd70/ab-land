@@ -170,6 +170,8 @@ interface ViewportOpts {
   families?: MineralFamily[];
   status?: string;
   limit?: number;
+  /** Restrict to one company's holdings (alias-expanded holder_norm match). */
+  company?: string;
 }
 
 /**
@@ -184,7 +186,7 @@ export function featuresInViewport(
   opts: ViewportOpts = {},
 ): Disposition[] {
   const [minx, miny, maxx, maxy] = bbox;
-  const { families, status, limit = 2000 } = opts;
+  const { families, status, limit = 2000, company } = opts;
   const clauses: string[] = [];
   const bind: Record<string, unknown> = { minx, miny, maxx, maxy, limit };
   if (families && families.length > 0) {
@@ -195,6 +197,12 @@ export function featuresInViewport(
   if (status) {
     clauses.push("d.status = @status");
     bind.status = status;
+  }
+  if (company) {
+    const keys = aliasGroupKeys(normalizeCompanyName(company));
+    const placeholders = keys.map((_, i) => `@holder${i}`).join(", ");
+    clauses.push(`d.holder_norm IN (${placeholders})`);
+    keys.forEach((k, i) => (bind[`holder${i}`] = k));
   }
   const sql = `SELECT d.* FROM dispositions d
     JOIN dispositions_rtree r ON r.id = d.id
@@ -208,18 +216,28 @@ export function featuresInViewport(
  * Every parcel with a known centroid as a lean record, for the clustered
  * province-wide overview. ~77k rows; a centroid-column scan runs in a few ms.
  */
-export function centroidsAll(db: DB, opts: { families?: MineralFamily[] } = {}): MapCentroid[] {
-  const { families } = opts;
+export function centroidsAll(
+  db: DB,
+  opts: { families?: MineralFamily[]; company?: string } = {},
+): MapCentroid[] {
+  const { families, company } = opts;
   const bind: Record<string, unknown> = {};
-  let familyClause = "";
+  const clauses: string[] = [];
   if (families && families.length > 0) {
     const placeholders = families.map((_, i) => `@family${i}`).join(", ");
-    familyClause = `AND family IN (${placeholders})`;
+    clauses.push(`family IN (${placeholders})`);
     families.forEach((f, i) => (bind[`family${i}`] = f));
+  }
+  if (company) {
+    const keys = aliasGroupKeys(normalizeCompanyName(company));
+    const placeholders = keys.map((_, i) => `@holder${i}`).join(", ");
+    clauses.push(`holder_norm IN (${placeholders})`);
+    keys.forEach((k, i) => (bind[`holder${i}`] = k));
   }
   const sql = `SELECT id, centroid_lon AS lon, centroid_lat AS lat, family, agreement_number, status
     FROM dispositions
-    WHERE centroid_lon IS NOT NULL AND centroid_lat IS NOT NULL ${familyClause}`;
+    WHERE centroid_lon IS NOT NULL AND centroid_lat IS NOT NULL
+      ${clauses.map((c) => `AND ${c}`).join(" ")}`;
   const rows = db.prepare(sql).all(bind) as {
     id: number;
     lon: number;

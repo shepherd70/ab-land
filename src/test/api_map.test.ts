@@ -26,11 +26,12 @@ beforeAll(async () => {
   const db = openDb(DB_FILE);
   applySchema(db);
   const upsert = prepareUpsert(db);
-  const at = (n: string, fam: string, lon: number, lat: number) => ({
+  const at = (n: string, fam: string, lon: number, lat: number, holderNorm?: string) => ({
     source: "geoview" as const,
     family: fam as MapCentroid["family"],
     agreementNumber: n,
     tract: "01",
+    holderNorm,
     centroid: [lon, lat] as [number, number],
     bbox: [lon - 0.01, lat - 0.01, lon + 0.01, lat + 0.01] as [number, number, number, number],
     geometryGeoJSON: JSON.stringify({
@@ -47,8 +48,9 @@ beforeAll(async () => {
     }),
     ingestedAt: new Date().toISOString(),
   });
-  upsert(at("0500001", "png", -114.0, 51.0));
-  upsert(at("0500003", "geothermal", -113.0, 57.0));
+  const { normalizeCompanyName } = await import("@/lib/matching/company_names");
+  upsert(at("0500001", "png", -114.0, 51.0, normalizeCompanyName("ACME ENERGY LTD")));
+  upsert(at("0500003", "geothermal", -113.0, 57.0, normalizeCompanyName("OTHER RESOURCES INC")));
   db.pragma("wal_checkpoint(TRUNCATE)");
   db.close();
 });
@@ -75,6 +77,15 @@ describe("GET /api/map/centroids", () => {
     const body = (await res.json()) as { centroids: MapCentroid[] };
     expect(body.centroids.map((c) => c.agreementNumber)).toEqual(["0500003"]);
   });
+
+  it("filters by company (name-variant match via normalization)", async () => {
+    const { GET } = await import("@/app/api/map/centroids/route");
+    const res = GET(
+      new NextRequest("http://test/api/map/centroids?company=Acme%20Energy%20Ltd."),
+    );
+    const body = (await res.json()) as { centroids: MapCentroid[] };
+    expect(body.centroids.map((c) => c.agreementNumber)).toEqual(["0500001"]);
+  });
 });
 
 describe("GET /api/map/features", () => {
@@ -89,6 +100,22 @@ describe("GET /api/map/features", () => {
     expect(fc.features).toHaveLength(1);
     expect(fc.features[0].properties?.agreementNumber).toBe("0500001");
     expect(fc.features[0].geometry.type).toBe("Polygon");
+  });
+
+  it("filters by company within the bbox", async () => {
+    const { GET } = await import("@/app/api/map/features/route");
+    const inRange = GET(
+      new NextRequest(
+        "http://test/api/map/features?bbox=-114.3,50.8,-113.8,51.2&company=acme%20energy",
+      ),
+    );
+    expect(((await inRange.json()) as FeatureCollection).features).toHaveLength(1);
+    const wrongCompany = GET(
+      new NextRequest(
+        "http://test/api/map/features?bbox=-114.3,50.8,-113.8,51.2&company=Other%20Resources",
+      ),
+    );
+    expect(((await wrongCompany.json()) as FeatureCollection).features).toHaveLength(0);
   });
 
   it("rejects an invalid bbox with 400", async () => {

@@ -110,6 +110,7 @@ export const MapFeaturesParams = z
       ),
     families: FamiliesCsv,
     status: z.string().trim().min(1).max(100).optional(),
+    company: z.string().trim().min(1).max(200).optional(),
     limit: z.coerce.number().int().min(1).max(4000).default(2000),
   })
   .refine((v) => v.bbox[0] <= v.bbox[2] && v.bbox[1] <= v.bbox[3], {
@@ -119,5 +120,8 @@ export const MapFeaturesParams = z
 export type MapFeaturesParams = z.infer<typeof MapFeaturesParams>;
 
 /** Query parameters for GET /api/map/centroids. */
-export const MapCentroidsParams = z.object({ families: FamiliesCsv });
+export const MapCentroidsParams = z.object({
+  families: FamiliesCsv,
+  company: z.string().trim().min(1).max(200).optional(),
+});
 export type MapCentroidsParams = z.infer<typeof MapCentroidsParams>;
