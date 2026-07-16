@@ -1,6 +1,8 @@
 /**
  * Tabular search results. Links to holding detail and company profile.
  * One row per parcel/tract — a multi-tract agreement appears once per tract.
+ * Application rows (A-prefixed type codes) carry an explicit badge — they are
+ * requests for tenure, not granted agreements.
  *
  * @module components/ResultsTable
  * Data source: none (renders provided rows)
@@ -8,7 +10,7 @@
  */
 import Link from "next/link";
 import type { Disposition } from "@/lib/types";
-import { formatAgreementType, formatExpiry } from "@/lib/tenure";
+import { formatAgreementType, formatExpiry, isApplicationType } from "@/lib/tenure";
 
 export function ResultsTable({ rows }: { rows: Disposition[] }) {
   if (rows.length === 0) return null;
@@ -37,6 +39,14 @@ export function ResultsTable({ rows }: { rows: Disposition[] }) {
                 {d.agreementNumber}
                 {d.tract ? `-${d.tract}` : ""}
               </Link>
+              {isApplicationType(d.agreementType) && (
+                <span
+                  className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                  title="Application for tenure — not a granted agreement"
+                >
+                  Application
+                </span>
+              )}
             </td>
             <td className="py-2 pr-4" title={d.agreementType ?? undefined}>
               {formatAgreementType(d.agreementType)}

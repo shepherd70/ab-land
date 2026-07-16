@@ -72,6 +72,22 @@ export const AGREEMENT_TYPE_LABELS: Readonly<Record<string, string>> = {
   "099": "Brine Hosted Licence",
 };
 
+/** `A`-prefixed AgreementType codes (e.g. `A59`, `A60`) are applications. */
+const APPLICATION_CODE = /^A(\d{2,3})$/;
+
+/**
+ * True when the AgreementType code is an application for tenure (`A`-prefixed,
+ * e.g. `A59`, `A60`) — a request that has not been granted, not held tenure.
+ * GeoView publishes a handful of these in the tenure leaf layers; we keep them
+ * (faithful to the source, like the sentinels and "Type 010" fallback) but
+ * badge them in search, holding, and map views rather than excluding them.
+ * Unlike the "– application" label suffix, this works for `A`-codes whose base
+ * type is unmapped.
+ */
+export function isApplicationType(code?: string | null): boolean {
+  return code != null && APPLICATION_CODE.test(code);
+}
+
 /**
  * Label for an AgreementType code, or undefined when unknown. `A`-prefixed
  * codes (e.g. `A59`, `A60`) are applications for the base type and label as
@@ -81,7 +97,7 @@ export function agreementTypeLabel(code?: string | null): string | undefined {
   if (!code) return undefined;
   const direct = AGREEMENT_TYPE_LABELS[code];
   if (direct) return direct;
-  const app = /^A(\d{2,3})$/.exec(code);
+  const app = APPLICATION_CODE.exec(code);
   if (app) {
     const base = AGREEMENT_TYPE_LABELS[app[1].padStart(3, "0")];
     if (base) return `${base} – application`;
