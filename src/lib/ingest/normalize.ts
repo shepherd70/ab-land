@@ -12,7 +12,7 @@ import type { Geometry } from "geojson";
 import { MineralAgreementProps, type ArcGisFeature } from "../schemas";
 import type { Disposition, MineralFamily } from "../types";
 import { normalizeCompanyName, parseParticipants } from "../matching/company_names";
-import { areaHectares, computeBbox, computeCentroid } from "../spatial/geo";
+import { areaHectares, computeBbox, computeCentroid, simplifyForMap } from "../spatial/geo";
 
 export type Normalizer = (feature: ArcGisFeature, sourceLayer: string) => Disposition;
 
@@ -64,6 +64,8 @@ export const makeMineralNormalizer =
       disp.centroid = computeCentroid(g);
       disp.areaHa = areaHectares(g);
       disp.geometryGeoJSON = JSON.stringify(feature.geometry);
+      const simplified = simplifyForMap(g);
+      if (simplified) disp.geometrySimplifiedGeoJSON = JSON.stringify(simplified);
     }
     return disp;
   };

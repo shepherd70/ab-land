@@ -19,13 +19,13 @@ export function prepareUpsert(db: DB): UpsertFn {
       holder_desrep, holder_desrep_id, participants, holder_norm,
       term_date, current_expiry_date, continuation_date, cancel_date, zone_desc, target_substance,
       area_ha, centroid_lon, centroid_lat, bbox_minx, bbox_miny, bbox_maxx, bbox_maxy,
-      geometry_geojson, ingested_at
+      geometry_geojson, geometry_simplified_geojson, ingested_at
     ) VALUES (
       @source, @family, @sourceLayer, @agreementType, @agreementNumber, @tract, @status,
       @holderDesrep, @holderDesrepId, @participants, @holderNorm,
       @termDate, @currentExpiryDate, @continuationDate, @cancelDate, @zoneDesc, @targetSubstance,
       @areaHa, @centroidLon, @centroidLat, @bboxMinx, @bboxMiny, @bboxMaxx, @bboxMaxy,
-      @geometryGeoJSON, @ingestedAt
+      @geometryGeoJSON, @geometrySimplifiedGeoJSON, @ingestedAt
     )
     ON CONFLICT (source, agreement_number, tract) DO UPDATE SET
       family = excluded.family,
@@ -50,6 +50,7 @@ export function prepareUpsert(db: DB): UpsertFn {
       bbox_maxx = excluded.bbox_maxx,
       bbox_maxy = excluded.bbox_maxy,
       geometry_geojson = excluded.geometry_geojson,
+      geometry_simplified_geojson = excluded.geometry_simplified_geojson,
       ingested_at = excluded.ingested_at
   `);
 
@@ -80,6 +81,7 @@ export function prepareUpsert(db: DB): UpsertFn {
       bboxMaxx: d.bbox?.[2] ?? null,
       bboxMaxy: d.bbox?.[3] ?? null,
       geometryGeoJSON: d.geometryGeoJSON ?? null,
+      geometrySimplifiedGeoJSON: d.geometrySimplifiedGeoJSON ?? null,
       ingestedAt: d.ingestedAt ?? new Date().toISOString(),
     });
   };

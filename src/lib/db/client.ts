@@ -30,7 +30,22 @@ export function openReadOnly(path: string = DEFAULT_DB_PATH): DB {
   return db;
 }
 
-/** Create tables, indexes, FTS, and triggers if they do not exist. */
+/** Does the table exist and have the named column? (pragma_table_info) */
+export function hasColumn(db: DB, table: string, column: string): boolean {
+  return (
+    db.prepare("SELECT 1 FROM pragma_table_info(?) WHERE name = ?").get(table, column) !==
+    undefined
+  );
+}
+
+/**
+ * Create tables, indexes, FTS, and triggers if they do not exist, then apply
+ * additive column migrations — `CREATE TABLE IF NOT EXISTS` cannot add a new
+ * column to a table from an earlier schema version.
+ */
 export function applySchema(db: DB, schemaPath: string = SCHEMA_PATH): void {
   db.exec(readFileSync(schemaPath, "utf8"));
+  if (!hasColumn(db, "dispositions", "geometry_simplified_geojson")) {
+    db.exec("ALTER TABLE dispositions ADD COLUMN geometry_simplified_geojson TEXT");
+  }
 }

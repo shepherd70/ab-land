@@ -92,5 +92,12 @@ export interface Disposition {
   bbox?: [number, number, number, number];
   /** GeoJSON Polygon/MultiPolygon (WGS84) as a string. */
   geometryGeoJSON?: string;
+  /**
+   * Map-simplified copy of the polygon (Douglas-Peucker, ~10 m tolerance),
+   * present only when it meaningfully shrinks a dense geometry — see
+   * `simplifyForMap` in lib/spatial/geo. The map-serving layer falls back to
+   * `geometryGeoJSON` when absent; detail views always use the full polygon.
+   */
+  geometrySimplifiedGeoJSON?: string;
   ingestedAt?: string;
 }

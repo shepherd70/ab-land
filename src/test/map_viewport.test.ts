@@ -81,6 +81,37 @@ describe("featuresInViewport", () => {
     const hits = featuresInViewport(db, CALGARY, { company: "Acme Energy Ltd." });
     expect(hits.map((d) => d.agreementNumber)).toEqual(["0500001"]);
   });
+
+  it("serves the simplified geometry when stored and the full polygon otherwise", () => {
+    const upsert = prepareUpsert(db);
+    const square = (r: number): string =>
+      JSON.stringify({
+        type: "Polygon",
+        coordinates: [
+          [
+            [-114 - r, 51 - r],
+            [-114 + r, 51 - r],
+            [-114 + r, 51 + r],
+            [-114 - r, 51 + r],
+            [-114 - r, 51 - r],
+          ],
+        ],
+      });
+    const full = square(0.01);
+    const simplified = square(0.009); // stand-in for an ingest-time simplifyForMap result
+    upsert({
+      ...parcel("0800001", "01", "png", -114.0, 51.0),
+      geometryGeoJSON: full,
+      geometrySimplifiedGeoJSON: simplified,
+    });
+    upsert({ ...parcel("0800002", "01", "png", -114.0, 51.05), geometryGeoJSON: full });
+
+    const hits = featuresInViewport(db, CALGARY);
+    const withCopy = hits.find((d) => d.agreementNumber === "0800001");
+    const withoutCopy = hits.find((d) => d.agreementNumber === "0800002");
+    expect(withCopy?.geometryGeoJSON).toBe(simplified);
+    expect(withoutCopy?.geometryGeoJSON).toBe(full);
+  });
 });
 
 describe("centroidsAll", () => {
