@@ -84,7 +84,7 @@ export default async function CompanyPage({
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 p-6">
       <Link href="/" className="text-sm text-zinc-500 underline-offset-2 hover:underline">
-        ← Search
+        ← Map
       </Link>
       <div className="mt-2">
         <CompanyProfile

@@ -56,7 +56,7 @@ export default async function HoldingPage({
           No agreement <strong>{id}</strong> found.
         </p>
         <Link href="/" className="text-sm underline">
-          ← Back to search
+          ← Back to map
         </Link>
       </main>
     );
@@ -85,7 +85,7 @@ export default async function HoldingPage({
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 p-6">
       <Link href="/" className="text-sm text-zinc-500 underline-offset-2 hover:underline">
-        ← Search
+        ← Map
       </Link>
       <h1 className="mt-2 text-2xl font-semibold">Agreement {id}</h1>
       {groups.size > 1 && (

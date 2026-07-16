@@ -8,7 +8,10 @@
 ab-land is a **single-user, local web app** for exploring **Alberta Crown mineral tenure** (and,
 optionally, surface land dispositions). It ingests open Government-of-Alberta tenure data into a
 local SQLite database and lets the user:
-- **Search** by company name, agreement number, or ATS legal land description.
+- **Browse** a zoomable province-wide map (the home page): clusters at low zoom, family-colored
+  parcels on zoom-in, click a parcel → popup → holding.
+- **Search** — overlaid on the map — by company name, agreement number, or ATS legal land
+  description; picking a result highlights and zooms to it.
 - **Drill into** a holding: holder / designated representative, agreement type, status, term &
   expiry dates, and parcel polygon (on a map).
 - **View a company profile** aggregating all of a company's holdings, as a list and on a map.
@@ -54,7 +57,7 @@ GeoView ArcGIS REST (Tier A) ─┐
                               ├─► ingest adapters ─► normalize+validate (Zod) ─► SQLite
 Altalis files (Tier B) ───────┘                                                    │
                                                                                     ▼
-                  React UI (search-first) + MapLibre  ◄─  Next.js route handlers (/api/*)
+                  React UI (map-first) + MapLibre  ◄─  Next.js route handlers (/api/*)
 ```
 - **Ingest** runs offline via `npm run ingest` (manual or Windows Task Scheduler); idempotent
   upsert; weekly refresh.
