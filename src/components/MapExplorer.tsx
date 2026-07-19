@@ -4,11 +4,13 @@
  * fetches, parses, and clusters the ~77k points off the main thread; on
  * zoom-in it fetches only the polygons in the current viewport (debounced)
  * from /api/map/features. Parcels are colored by mineral family and clickable
- * for a detail popup that drills through to the holding page.
+ * for a detail popup that drills through to the holding page. With the
+ * `searchable` prop, a floating search overlay (MapSearch) zooms to and
+ * highlights a picked agreement — geometry via /api/holdings/[id].
  *
  * @module components/MapExplorer
- * Data source: /api/map/centroids + /api/map/features (read local SQLite);
- *   basemap © OpenStreetMap (see lib/map/basemap)
+ * Data source: /api/map/centroids + /api/map/features + /api/holdings/[id]
+ *   (read local SQLite); basemap © OpenStreetMap (see lib/map/basemap)
  * @see CLAUDE.md §1, §4, §11
  */
 "use client";
@@ -20,8 +22,9 @@ import type {
   Map as MlMap,
   MapGeoJSONFeature,
 } from "maplibre-gl";
-import type { FeatureCollection } from "geojson";
+import type { Feature, FeatureCollection, Geometry } from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { MapSearch } from "@/components/MapSearch";
 import { getBasemapStyle } from "@/lib/map/basemap";
 import {
   FAMILY_STYLES,
@@ -30,7 +33,7 @@ import {
   familyLabel,
 } from "@/lib/map/families";
 import { formatAgreementType, formatExpiry } from "@/lib/tenure";
-import type { MineralFamily } from "@/lib/types";
+import type { Disposition, MineralFamily } from "@/lib/types";
 
 /** Province-wide default view. */
 const ALBERTA_CENTER: [number, number] = [-114.5, 54.5];
@@ -42,6 +45,9 @@ const ATTRIBUTION = "Tenure data © Government of Alberta (OGL–Alberta)";
 
 const CENTROIDS_SRC = "centroids";
 const POLYS_SRC = "viewport-polys";
+const SELECTED_SRC = "selected-agreement";
+/** Search-selection highlight — deliberately outside the family palette. */
+const SELECTED_COLOR = "#eab308";
 
 const EMPTY_FC: FeatureCollection = { type: "FeatureCollection", features: [] };
 
@@ -95,8 +101,11 @@ export function MapExplorer({
   className,
   company,
   initialBounds,
+  searchable = false,
 }: {
   className?: string;
+  /** Show the floating search overlay (map-first home). Fixed per mount. */
+  searchable?: boolean;
   /**
    * Restrict the map to one company's holdings (alias-expanded heuristic match,
    * same as the company profile). Fixed per mount — the map is created once and
@@ -281,6 +290,23 @@ export function MapExplorer({
           paint: { "line-color": colorExpr, "line-width": 1 },
         });
 
+        // Search selection: the picked agreement's tracts, drawn on top of
+        // everything so it stays visible at any zoom (unlike viewport polygons,
+        // which only load at MIN_POLY_ZOOM+).
+        map.addSource(SELECTED_SRC, { type: "geojson", data: EMPTY_FC });
+        map.addLayer({
+          id: "selected-fill",
+          type: "fill",
+          source: SELECTED_SRC,
+          paint: { "fill-color": SELECTED_COLOR, "fill-opacity": 0.15 },
+        });
+        map.addLayer({
+          id: "selected-line",
+          type: "line",
+          source: SELECTED_SRC,
+          paint: { "line-color": SELECTED_COLOR, "line-width": 2.5 },
+        });
+
         loadedRef.current = true;
         loadViewport();
 
@@ -299,6 +325,19 @@ export function MapExplorer({
         });
         map.on("click", "viewport-fill", (e) => {
           if (!map) return;
+          const feat = e.features?.[0];
+          if (!feat) return;
+          new maplibregl.Popup({ closeButton: true })
+            .setLngLat(e.lngLat)
+            .setHTML(popupHtml(feat.properties as Record<string, unknown>))
+            .addTo(map);
+        });
+        // The highlighted agreement is clickable even below MIN_POLY_ZOOM;
+        // where it overlaps a viewport polygon the handler above already fires,
+        // so bail rather than opening a second popup.
+        map.on("click", "selected-fill", (e) => {
+          if (!map) return;
+          if (map.queryRenderedFeatures(e.point, { layers: ["viewport-fill"] }).length > 0) return;
           const feat = e.features?.[0];
           if (!feat) return;
           new maplibregl.Popup({ closeButton: true })
@@ -327,7 +366,7 @@ export function MapExplorer({
           }
           hoveredId = undefined;
         });
-        for (const layer of ["clusters", "unclustered-point"]) {
+        for (const layer of ["clusters", "unclustered-point", "selected-fill"]) {
           map.on("mouseenter", layer, () => {
             if (map) map.getCanvas().style.cursor = "pointer";
           });
@@ -376,6 +415,67 @@ export function MapExplorer({
      
   }, [active]);
 
+  // Zoom to and highlight a search-picked agreement. Fetches every tract's
+  // geometry (the search row itself carries none) and frames their union.
+  async function selectAgreement(d: Disposition): Promise<void> {
+    const map = mapRef.current;
+    if (!map || !loadedRef.current) return;
+    try {
+      const res = await fetch(`/api/holdings/${encodeURIComponent(d.agreementNumber)}`);
+      const body = (await res.json()) as { holdings?: Disposition[] };
+      if (!res.ok) throw new Error("holdings fetch failed");
+      const rows = (body.holdings ?? []).filter(
+        (h) => h.geometryGeoJSON && h.family === d.family && h.source === d.source,
+      );
+      const features: Feature[] = rows.map((h) => ({
+        type: "Feature",
+        geometry: JSON.parse(h.geometryGeoJSON as string) as Geometry,
+        properties: {
+          family: h.family,
+          agreementNumber: h.agreementNumber,
+          tract: h.tract ?? "",
+          agreementType: h.agreementType ?? "",
+          status: h.status ?? "",
+          currentExpiryDate: h.currentExpiryDate ?? null,
+          areaHa: h.areaHa ?? null,
+        },
+      }));
+      (map.getSource(SELECTED_SRC) as GeoJSONSource | undefined)?.setData({
+        type: "FeatureCollection",
+        features,
+      });
+
+      // Union of the tract bboxes; the picked row's own bbox is the fallback.
+      let b: [number, number, number, number] | undefined;
+      for (const h of [...rows, d]) {
+        if (!h.bbox) continue;
+        b = b
+          ? [
+              Math.min(b[0], h.bbox[0]),
+              Math.min(b[1], h.bbox[1]),
+              Math.max(b[2], h.bbox[2]),
+              Math.max(b[3], h.bbox[3]),
+            ]
+          : [...h.bbox];
+      }
+      if (b) {
+        map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, maxZoom: 13 });
+      } else if (features.length === 0) {
+        setError("No mapped geometry for that agreement.");
+        return;
+      }
+      setError(null);
+    } catch {
+      setError("Failed to load the selected agreement.");
+    }
+  }
+
+  function clearSelection(): void {
+    const map = mapRef.current;
+    if (!map || !loadedRef.current) return;
+    (map.getSource(SELECTED_SRC) as GeoJSONSource | undefined)?.setData(EMPTY_FC);
+  }
+
   function toggleFamily(family: MineralFamily): void {
     setActive((prev) => {
       const next = new Set(prev);
@@ -415,6 +515,16 @@ export function MapExplorer({
       </aside>
       <div className="relative min-w-0 flex-1">
         <div ref={containerRef} className="h-full w-full" />
+        {searchable && (
+          <div className="absolute left-3 top-3 z-10">
+            <MapSearch
+              onSelect={(d) => {
+                void selectAgreement(d);
+              }}
+              onClear={clearSelection}
+            />
+          </div>
+        )}
         {hint && (
           <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-md bg-zinc-900/80 px-3 py-1 text-xs text-white">
             {hint}

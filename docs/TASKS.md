@@ -9,7 +9,7 @@
 
 **Legend:** ✅ done · 🔨 in progress · ⬜ queued · 💤 dormant (blocked on external input) · 🚫 out of scope
 
-_Last updated: 2026-07-10 · `main` @ `595e0a4`_
+_Last updated: 2026-07-16 · `main` @ `1417359`_
 
 ---
 
@@ -62,7 +62,12 @@ _Last updated: 2026-07-10 · `main` @ `595e0a4`_
 
 ## 🔨 In progress
 
-- _(nothing active — `main` is clean and CI is green)_
+- 🔨 **#14 — Map-first UI.** The home page is now the province-wide zoomable explorer; browse →
+  zoom → click a parcel → holding. Search moved onto the map as a floating overlay
+  (`MapSearch.tsx`): debounced `/api/search` (auto kind), company hits link to profiles, parcel
+  hits zoom to and highlight the agreement (all tracts, via `/api/holdings/[id]` geometry, drawn
+  on a `selected-agreement` source that stays visible at any zoom). `/map` redirects to `/`;
+  `SearchPanel.tsx` and the search-first home are gone; header/back-links point at the map.
 
 ## ⬜ Next up
 

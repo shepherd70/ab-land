@@ -1,8 +1,10 @@
 # ab-land
 
-Local explorer for **Alberta Crown mineral tenure**. Search a company → see every agreement they
-hold; drill into holder / type / term dates / parcel; view it on a map. Or open **`/map`** for a
-province-wide, clustered, family-colored explorer with click-through to each holding.
+Local explorer for **Alberta Crown mineral tenure**. The home page **is** the map: a zoomable,
+province-wide, clustered, family-colored explorer — browse, zoom into parcels, and click through
+to any holding. Search (company, agreement number, or ATS legal land description) sits right on
+the map and zooms to what it finds; company profiles aggregate a holder's agreements as a list
+and a map.
 
 > **Crown agreement tenure, not land title.** This tool shows who holds a Crown *agreement*, not
 > who owns the *land title*. Mineral data © Government of Alberta, used under the
@@ -34,7 +36,7 @@ full architecture, data model, and guardrails.
 
 - `npm run dev` / `build` / `start` / `lint` — Next.js
 - `npm run db:init` — create/migrate the SQLite schema (also builds the map spatial index; re-run
-  once on an existing DB to backfill it — the `/map` explorer returns a `503` until it exists)
+  once on an existing DB to backfill it — the map explorer returns a `503` until it exists)
 - `npm run ingest` — full ingest (`:minerals` and `:surface` run a single tier)
 - `npm test` / `npm run test:watch` — Vitest
 - `npm run typecheck` — `tsc --noEmit`

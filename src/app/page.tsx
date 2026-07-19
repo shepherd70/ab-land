@@ -1,22 +1,24 @@
 /**
- * Search-first home. The map appears on drill-in (holding/company pages).
+ * Map-first home — the province-wide zoomable explorer with search overlaid.
+ * Browse, zoom into parcels, click through to holdings; search lives on the
+ * map (MapSearch) instead of a separate page.
  *
  * @module app/page
- * Data source: none (renders the client search panel)
+ * Data source: none (renders the client map explorer)
  * @see CLAUDE.md §1
  */
-import { SearchPanel } from "@/components/SearchPanel";
+import { MapExplorer } from "@/components/MapExplorer";
+
+export const dynamic = "force-dynamic";
 
 export default function Home() {
+  // The map needs a *definite* height to fill. The app-shell body is `min-h-full`
+  // (a minimum, not a definite height), so a percentage `h-full` here collapses to
+  // the sidebar's content height. Pin the explorer to the viewport minus the
+  // header+footer chrome (~3.5rem) with dvh, which resolves without a definite parent.
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Alberta Crown Mineral Tenure</h1>
-      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-        Search by company, agreement number, or legal land description (ATS).
-      </p>
-      <div className="mt-6">
-        <SearchPanel />
-      </div>
+    <main className="min-h-0 flex-1">
+      <MapExplorer searchable className="h-[calc(100dvh_-_3.5rem)] w-full" />
     </main>
   );
 }
