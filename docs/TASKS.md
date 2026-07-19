@@ -9,7 +9,7 @@
 
 **Legend:** ✅ done · 🔨 in progress · ⬜ queued · 💤 dormant (blocked on external input) · 🚫 out of scope
 
-_Last updated: 2026-07-16 · `main` @ `1417359`_
+_Last updated: 2026-07-19 · `main` @ `69adfb1`_
 
 ---
 
@@ -60,14 +60,16 @@ _Last updated: 2026-07-16 · `main` @ `1417359`_
   showed ALL families; both paths now short-circuit to an empty FeatureCollection. Deliberately
   skipped `clusterMaxZoom`/`maxzoom` tuning — freeze fixed, tuning changes cluster visuals.
 
-## 🔨 In progress
-
-- 🔨 **#14 — Map-first UI.** The home page is now the province-wide zoomable explorer; browse →
-  zoom → click a parcel → holding. Search moved onto the map as a floating overlay
+- ✅ **#14 — Map-first UI (PR #20)** — the home page is the province-wide zoomable explorer;
+  browse → zoom → click a parcel → holding. Search moved onto the map as a floating overlay
   (`MapSearch.tsx`): debounced `/api/search` (auto kind), company hits link to profiles, parcel
   hits zoom to and highlight the agreement (all tracts, via `/api/holdings/[id]` geometry, drawn
   on a `selected-agreement` source that stays visible at any zoom). `/map` redirects to `/`;
   `SearchPanel.tsx` and the search-first home are gone; header/back-links point at the map.
+
+## 🔨 In progress
+
+- _(nothing active — `main` is clean and CI is green)_
 
 ## ⬜ Next up
 
