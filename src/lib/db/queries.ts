@@ -175,6 +175,62 @@ export function getByAgreementNumber(db: DB, agreementNumber: string): Dispositi
 }
 
 /**
+ * Identifies one agreement's tracts. Agreement numbers repeat across families
+ * and sources, so all three parts are required to scope a selection.
+ */
+export interface AgreementKey {
+  number: string;
+  family: MineralFamily;
+  source: string;
+}
+
+const AGREEMENT_WHERE = `agreement_number = @number AND family = @family AND source = @source`;
+
+/**
+ * The tracts of one agreement, with full geometry, for the map's selection
+ * highlight. Served as a GeoJSON URL so MapLibre's worker does the parsing —
+ * see /api/map/agreement.
+ */
+export function agreementFeatures(db: DB, key: AgreementKey): Disposition[] {
+  const rows = db
+    .prepare(`SELECT * FROM dispositions WHERE ${AGREEMENT_WHERE} ORDER BY tract`)
+    .all(key) as DbRow[];
+  return rows.map(rowToDisposition);
+}
+
+/**
+ * The merged bbox and mapped-tract count for one agreement. Lets the map frame
+ * a selection without ever parsing its polygons on the main thread. `tracts`
+ * counts only rows with stored geometry, so 0 means "nothing to draw"; `bbox`
+ * is null in that same case.
+ */
+export function agreementBounds(
+  db: DB,
+  key: AgreementKey,
+): { bbox: ViewportBbox | null; tracts: number } {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS tracts,
+              MIN(bbox_minx) AS minx, MIN(bbox_miny) AS miny,
+              MAX(bbox_maxx) AS maxx, MAX(bbox_maxy) AS maxy
+       FROM dispositions
+       WHERE ${AGREEMENT_WHERE} AND geometry_geojson IS NOT NULL`,
+    )
+    .get(key) as {
+    tracts: number;
+    minx: number | null;
+    miny: number | null;
+    maxx: number | null;
+    maxy: number | null;
+  };
+  const bbox: ViewportBbox | null =
+    row.minx == null || row.miny == null || row.maxx == null || row.maxy == null
+      ? null
+      : [row.minx, row.miny, row.maxx, row.maxy];
+  return { bbox, tracts: row.tracts };
+}
+
+/**
  * An alias-expanded `<column> IN (…)` fragment restricting rows to one
  * company's holdings, plus the values to bind. Broadened to known
  * alias/predecessor names — heuristic, never authoritative ownership

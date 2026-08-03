@@ -123,26 +123,3 @@ describe("GET /api/search", () => {
     expect(body.error).toBe("invalid_query");
   });
 });
-
-describe("GET /api/holdings/[id]", () => {
-  it("returns every tract of the agreement, with geometry, ordered by tract", async () => {
-    const { GET } = await import("@/app/api/holdings/[id]/route");
-    const res = await GET(new Request("http://test/api/holdings/0512345"), {
-      params: Promise.resolve({ id: "0512345" }),
-    });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { holdings: Disposition[] };
-    expect(body.holdings.map((h) => h.tract)).toEqual(["01", "02"]);
-    // Detail contract: full geometry included.
-    expect(body.holdings.every((h) => typeof h.geometryGeoJSON === "string")).toBe(true);
-  });
-
-  it("returns an empty list for an unknown agreement", async () => {
-    const { GET } = await import("@/app/api/holdings/[id]/route");
-    const res = await GET(new Request("http://test/api/holdings/9999999"), {
-      params: Promise.resolve({ id: "9999999" }),
-    });
-    const body = (await res.json()) as { holdings: Disposition[] };
-    expect(body.holdings).toEqual([]);
-  });
-});

@@ -6,10 +6,11 @@
  * from /api/map/features. Parcels are colored by mineral family and clickable
  * for a detail popup that drills through to the holding page. With the
  * `searchable` prop, a floating search overlay (MapSearch) zooms to and
- * highlights a picked agreement — geometry via /api/holdings/[id].
+ * highlights a picked agreement — its polygons are handed to the worker as a
+ * /api/map/agreement URL, and only the tiny bbox summary is read here.
  *
  * @module components/MapExplorer
- * Data source: /api/map/centroids + /api/map/features + /api/holdings/[id]
+ * Data source: /api/map/centroids + /api/map/features + /api/map/agreement
  *   (read local SQLite); basemap © OpenStreetMap (see lib/map/basemap)
  * @see CLAUDE.md §1, §4, §11
  */
@@ -22,7 +23,7 @@ import type {
   Map as MlMap,
   MapGeoJSONFeature,
 } from "maplibre-gl";
-import type { Feature, FeatureCollection, Geometry } from "geojson";
+import type { FeatureCollection } from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapSearch } from "@/components/MapSearch";
 import { getBasemapStyle } from "@/lib/map/basemap";
@@ -136,10 +137,20 @@ export function MapExplorer({
   });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // Selection gets its own abort controller: `abortRef` belongs to
+  // loadViewport, and sharing it would make every pan/zoom cancel an in-flight
+  // selection (and vice versa). `selectSeqRef` orders overlapping picks so a
+  // slow earlier response can never overwrite a newer one — or resurrect a
+  // highlight the user has already cleared.
+  const selectAbortRef = useRef<AbortController | null>(null);
+  const selectSeqRef = useRef(0);
+  /** A result picked before the map finished loading; drained by the load handler. */
+  const pendingSelectRef = useRef<Disposition | null>(null);
 
   const [active, setActive] = useState<Set<MineralFamily>>(() => new Set(MINERAL_FAMILIES));
   const [hint, setHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   // Fetch the polygons for the current viewport (or clear them when zoomed out).
   function loadViewport(): void {
@@ -314,6 +325,15 @@ export function MapExplorer({
         loadedRef.current = true;
         loadViewport();
 
+        // The search overlay is interactive from first paint, so a result can
+        // be picked while the style/basemap is still loading. Apply it now
+        // instead of dropping it on the floor.
+        const pending = pendingSelectRef.current;
+        if (pending) {
+          pendingSelectRef.current = null;
+          void selectAgreement(pending);
+        }
+
         // Cluster click → expand. Polygon click → popup. Hover highlight.
         map.on("click", "clusters", async (e) => {
           if (!map) return;
@@ -397,6 +417,7 @@ export function MapExplorer({
       window.removeEventListener("resize", onResize);
       if (debounceRef.current) clearTimeout(debounceRef.current);
       abortRef.current?.abort();
+      selectAbortRef.current?.abort();
       map?.remove();
       mapRef.current = null;
       loadedRef.current = false;
@@ -419,62 +440,74 @@ export function MapExplorer({
      
   }, [active]);
 
-  // Zoom to and highlight a search-picked agreement. Fetches every tract's
-  // geometry (the search row itself carries none) and frames their union.
+  // Zoom to and highlight a search-picked agreement. The tract polygons go to
+  // MapLibre's worker as a source URL — same trick as the centroids, so a
+  // many-tract agreement never blocks the main thread parsing geometry. Only
+  // the tiny bbox+count summary is read here, to frame the selection.
   async function selectAgreement(d: Disposition): Promise<void> {
     const map = mapRef.current;
-    if (!map || !loadedRef.current) return;
-    try {
-      const res = await fetch(`/api/holdings/${encodeURIComponent(d.agreementNumber)}`);
-      const body = (await res.json()) as { holdings?: Disposition[] };
-      if (!res.ok) throw new Error("holdings fetch failed");
-      const rows = (body.holdings ?? []).filter(
-        (h) => h.geometryGeoJSON && h.family === d.family && h.source === d.source,
-      );
-      const features: Feature[] = rows.map((h) => ({
-        type: "Feature",
-        geometry: JSON.parse(h.geometryGeoJSON as string) as Geometry,
-        properties: {
-          family: h.family,
-          agreementNumber: h.agreementNumber,
-          tract: h.tract ?? "",
-          agreementType: h.agreementType ?? "",
-          status: h.status ?? "",
-          currentExpiryDate: h.currentExpiryDate ?? null,
-          areaHa: h.areaHa ?? null,
-        },
-      }));
-      (map.getSource(SELECTED_SRC) as GeoJSONSource | undefined)?.setData({
-        type: "FeatureCollection",
-        features,
-      });
+    if (!map) return;
+    if (!loadedRef.current) {
+      // Picked while the style/basemap was still loading; the load handler
+      // drains this instead of the pick silently doing nothing.
+      pendingSelectRef.current = d;
+      setHint("Loading map…");
+      return;
+    }
 
-      // Union of the tract bboxes; the picked row's own bbox is the fallback.
-      let b: [number, number, number, number] | undefined;
-      for (const h of [...rows, d]) {
-        if (!h.bbox) continue;
-        b = b
-          ? [
-              Math.min(b[0], h.bbox[0]),
-              Math.min(b[1], h.bbox[1]),
-              Math.max(b[2], h.bbox[2]),
-              Math.max(b[3], h.bbox[3]),
-            ]
-          : [...h.bbox];
-      }
-      if (b) {
-        map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, maxZoom: 13 });
-      } else if (features.length === 0) {
+    // Order this pick against any other in flight, and cancel the previous one.
+    const seq = ++selectSeqRef.current;
+    selectAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    selectAbortRef.current = ctrl;
+    setBusy(true);
+
+    const params = new URLSearchParams({
+      number: d.agreementNumber,
+      family: d.family,
+      source: d.source,
+    });
+    const url = `/api/map/agreement?${params.toString()}`;
+    // Overlapping loads coalesce in the worker, last one wins (see the
+    // centroids source above).
+    (map.getSource(SELECTED_SRC) as GeoJSONSource | undefined)?.setData(url);
+
+    try {
+      const res = await fetch(`${url}&meta=bounds`, { signal: ctrl.signal });
+      const body = (await res.json()) as {
+        bbox?: [number, number, number, number] | null;
+        tracts?: number;
+      };
+      // A newer pick (or a clear) landed while this was in flight.
+      if (seq !== selectSeqRef.current) return;
+      if (!res.ok) throw new Error("agreement bounds fetch failed");
+      if ((body.tracts ?? 0) === 0) {
+        (map.getSource(SELECTED_SRC) as GeoJSONSource | undefined)?.setData(EMPTY_FC);
         setError("No mapped geometry for that agreement.");
         return;
       }
+      // The picked row's own bbox is the fallback.
+      const b = body.bbox ?? d.bbox;
+      if (b) {
+        map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, maxZoom: 13 });
+      }
       setError(null);
-    } catch {
+    } catch (e: unknown) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      if (seq !== selectSeqRef.current) return;
       setError("Failed to load the selected agreement.");
+    } finally {
+      if (seq === selectSeqRef.current) setBusy(false);
     }
   }
 
   function clearSelection(): void {
+    // Cancel anything in flight or queued first — otherwise a late response
+    // repaints the highlight the user just dropped.
+    selectSeqRef.current++;
+    selectAbortRef.current?.abort();
+    pendingSelectRef.current = null;
+    setBusy(false);
     const map = mapRef.current;
     if (!map || !loadedRef.current) return;
     (map.getSource(SELECTED_SRC) as GeoJSONSource | undefined)?.setData(EMPTY_FC);
@@ -529,7 +562,15 @@ export function MapExplorer({
             />
           </div>
         )}
-        {hint && (
+        {busy && (
+          <div
+            role="status"
+            className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-md bg-zinc-900/80 px-3 py-1 text-xs text-white"
+          >
+            Loading agreement…
+          </div>
+        )}
+        {!busy && hint && (
           <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-md bg-zinc-900/80 px-3 py-1 text-xs text-white">
             {hint}
           </div>

@@ -102,8 +102,9 @@ export default async function CompanyPage({
           <p className="mt-1 text-xs text-zinc-500">
             All {summary.parcels.toLocaleString()} parcels — not just this page.
           </p>
-          {/* Definite height required — a percentage collapses inside this
-              min-h shell (see app/map/page.tsx). */}
+          {/* Definite height required — this main grows with its content, so a
+              percentage has nothing to resolve against (see app/page.tsx, which
+              opts into min-h-0 to fill the viewport instead). */}
           <MapExplorer
             company={name}
             initialBounds={bounds ?? undefined}

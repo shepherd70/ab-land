@@ -9,7 +9,7 @@ import Link from "next/link";
 
 export function Header() {
   return (
-    <header className="flex items-baseline gap-3 border-b border-zinc-200 px-6 py-3 text-sm dark:border-zinc-800">
+    <header className="flex shrink-0 items-baseline gap-3 border-b border-zinc-200 px-6 py-3 text-sm dark:border-zinc-800">
       <Link href="/" className="font-semibold tracking-tight underline-offset-2 hover:underline">
         ab-land
       </Link>

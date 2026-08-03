@@ -63,9 +63,9 @@ _Last updated: 2026-07-19 · `main` @ `69adfb1`_
 - ✅ **#14 — Map-first home** — the home page is now the province-wide zoomable explorer; browse →
   zoom → click a parcel → holding. Search moved onto the map as a floating overlay
   (`MapSearch.tsx`): debounced `/api/search` (auto kind), company hits link to profiles, parcel
-  hits zoom to and highlight the agreement (all tracts, via `/api/holdings/[id]` geometry, drawn
-  on a `selected-agreement` source that stays visible at any zoom). `/map` redirects to `/`;
-  `SearchPanel.tsx` and the search-first home are gone; header/back-links point at the map.
+  hits zoom to and highlight the agreement (all tracts, drawn on a `selected-agreement` source
+  that stays visible at any zoom). `/map` redirects to `/`; `SearchPanel.tsx` and the
+  search-first home are gone; header/back-links point at the map.
 
 - ✅ **#15 — Application rows badged, not excluded** — geothermal/72's `A60` and PNG/31's two
   `A59` rows stay in search/map views (faithful to the source, like the sentinels and the
@@ -86,7 +86,12 @@ _Last updated: 2026-07-19 · `main` @ `69adfb1`_
 
 ## 🔨 In progress
 
-- _(nothing active)_
+- 🔨 **#20 review follow-ups.** Ten defects found reviewing the map-first PR are fixed on
+  `fix/pr20-review-followups`. The app shell now has a definite-height flex layout; `MapSearch`
+  correctly handles clear, Escape, outside clicks, failures, request cancellation, rapid
+  selection changes, and selections made before map load. Selection geometry moves off the main
+  thread through `/api/map/agreement`, with a bounds-only variant for framing and a busy state;
+  the now-unused `/api/holdings/[id]` route is removed. Awaiting PR and merge.
 
 ## ⬜ Next up
 
