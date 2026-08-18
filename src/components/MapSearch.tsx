@@ -47,6 +47,7 @@ export function MapSearch({
   const [open, setOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   // Cancel the pending debounce/fetch on unmount.
   useEffect(
@@ -57,6 +58,22 @@ export function MapSearch({
     [],
   );
 
+  // Close on an outside click so the panel stops swallowing map clicks — the
+  // whole point of the overlay is picking a result then clicking the parcels
+  // around it. Close only: the query and the map highlight survive, and
+  // focusing the input reopens. `pointerdown` runs before MapLibre's click
+  // handling, so the same gesture also reaches the canvas.
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent): void => {
+      const target = e.target;
+      if (target instanceof Node && rootRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
   // Debounced search-as-you-type; in-flight responses for a stale query abort.
   function handleChange(value: string): void {
     setQ(value);
@@ -66,6 +83,10 @@ export function MapSearch({
     if (trimmed.length < MIN_QUERY_LEN) {
       setResults([]);
       setStatus(null);
+      setOpen(false);
+      // Emptying the box must drop the map highlight too, or it strands: the ×
+      // is hidden once `q` is empty, leaving Escape as the only way out.
+      onClear();
       return;
     }
     debounceRef.current = setTimeout(() => {
@@ -83,6 +104,9 @@ export function MapSearch({
           if (!res.ok) {
             setResults([]);
             setStatus(body.message ?? body.error ?? "Search failed.");
+            // Picking a parcel closes the panel; without this, a later failure
+            // would render its message into a panel nobody can see.
+            setOpen(true);
             return;
           }
           const rows = body.results ?? [];
@@ -94,11 +118,19 @@ export function MapSearch({
           if (e instanceof DOMException && e.name === "AbortError") return;
           setResults([]);
           setStatus("Search failed.");
+          setOpen(true);
         });
     }, DEBOUNCE_MS);
   }
 
   function clear(): void {
+    // The queued debounce has to go first: `abortRef` still holds the previous,
+    // already-settled controller, so aborting alone lets the timer fire and
+    // re-open the panel for the query the user just cleared.
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
     abortRef.current?.abort();
     setQ("");
     setResults([]);
@@ -111,7 +143,7 @@ export function MapSearch({
   const parcels = results.slice(0, MAX_PARCELS);
 
   return (
-    <div className="w-80 max-w-[calc(100vw-8rem)] text-sm">
+    <div ref={rootRef} className="w-80 max-w-[calc(100vw-8rem)] text-sm">
       <div className="flex items-center gap-1 rounded-md border border-zinc-300 bg-white/95 shadow-md backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95">
         <input
           value={q}

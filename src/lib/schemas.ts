@@ -119,6 +119,18 @@ export const MapFeaturesParams = z
   });
 export type MapFeaturesParams = z.infer<typeof MapFeaturesParams>;
 
+/**
+ * Query parameters for GET /api/map/agreement. `meta=bounds` swaps the GeoJSON
+ * body for the tiny bbox+count summary the map uses to frame a selection.
+ */
+export const MapAgreementParams = z.object({
+  number: z.string().trim().min(1).max(100),
+  family: MineralFamilyEnum,
+  source: z.string().trim().min(1).max(100),
+  meta: z.enum(["bounds"]).optional(),
+});
+export type MapAgreementParams = z.infer<typeof MapAgreementParams>;
+
 /** Query parameters for GET /api/map/centroids. */
 export const MapCentroidsParams = z.object({
   families: FamiliesCsv,
