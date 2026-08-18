@@ -71,7 +71,9 @@ Next.js (App Router) + TypeScript (strict) + Tailwind · SQLite via `better-sqli
 ## 5. Data model — normalized "disposition core"
 One table `dispositions` (every source maps into it) + an FTS5 shadow table for name search.
 See `src/lib/db/schema.sql` and `src/lib/types.ts`. Key points:
-- Natural key: `UNIQUE(source, agreement_number, tract)`.
+- Natural key: `UNIQUE(source, family, agreement_type, agreement_number, tract)`; legacy agreement
+  numbers overlap across both families and types, so all five fields are required to prevent one
+  distinct agreement parcel overwriting another.
 - `holder_norm` is computed in `lib/matching/company_names.ts` (handles Ltd/Inc/ULC variants,
   predecessors after transfers). **Matching is heuristic — never assert exactness or ownership.**
 - All geometry stored as WGS84 (EPSG:4326) GeoJSON, plus precomputed bbox + centroid columns.

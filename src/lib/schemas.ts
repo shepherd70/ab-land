@@ -127,6 +127,7 @@ export const MapAgreementParams = z.object({
   number: z.string().trim().min(1).max(100),
   family: MineralFamilyEnum,
   source: z.string().trim().min(1).max(100),
+  type: z.string().trim().min(1).max(100).optional(),
   meta: z.enum(["bounds"]).optional(),
 });
 export type MapAgreementParams = z.infer<typeof MapAgreementParams>;

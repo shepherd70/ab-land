@@ -52,7 +52,7 @@ function prepareStagingTable(db: DB): void {
     CREATE TEMP TABLE IF NOT EXISTS ${STAGING_TABLE} AS
       SELECT ${PUBLISH_COLUMNS} FROM dispositions WHERE 0;
     CREATE UNIQUE INDEX IF NOT EXISTS ingest_dispositions_key
-      ON ${STAGING_TABLE} (source, agreement_number, tract);
+      ON ${STAGING_TABLE} (source, family, agreement_type, agreement_number, tract);
     DELETE FROM ${STAGING_TABLE};
   `);
 }
@@ -135,6 +135,8 @@ function countRemovedRows(db: DB, layer: string): number {
          AND NOT EXISTS (
            SELECT 1 FROM ${STAGING_TABLE} s
            WHERE s.source = d.source
+             AND s.family = d.family
+             AND s.agreement_type = d.agreement_type
              AND s.source_layer = d.source_layer
              AND s.agreement_number = d.agreement_number
              AND s.tract = d.tract
@@ -179,6 +181,17 @@ export async function ingestMineralSources(
       staged.push(entry);
       entry.rows = await stageSource(db, baseUrl, src, startedAt);
       validateRowCount(layer, entry.rows, existingLayerCount(db, layer));
+    }
+
+    const { n: stagedTotal } = db
+      .prepare(`SELECT COUNT(*) AS n FROM ${STAGING_TABLE}`)
+      .get() as { n: number };
+    const reportedTotal = staged.reduce((sum, entry) => sum + entry.rows, 0);
+    if (stagedTotal !== reportedTotal) {
+      throw new Error(
+        `Staging collapsed ${reportedTotal - stagedTotal} duplicate natural keys; ` +
+          "refusing to publish until the source/family/type/agreement/tract identity is verified.",
+      );
     }
 
     const finishedAt = new Date().toISOString();

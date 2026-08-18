@@ -1,5 +1,6 @@
 /**
- * Idempotent upsert into `dispositions`, keyed by (source, agreement_number, tract).
+ * Idempotent upsert into `dispositions`, keyed by
+ * (source, family, agreement_type, agreement_number, tract).
  * Re-running ingest updates existing rows in place; FTS stays synced via triggers.
  *
  * @module lib/ingest/upsert
@@ -29,8 +30,7 @@ export function prepareUpsert(db: DB, table: DispositionTable = "dispositions"):
       @areaHa, @centroidLon, @centroidLat, @bboxMinx, @bboxMiny, @bboxMaxx, @bboxMaxy,
       @geometryGeoJSON, @geometrySimplifiedGeoJSON, @ingestedAt
     )
-    ON CONFLICT (source, agreement_number, tract) DO UPDATE SET
-      family = excluded.family,
+    ON CONFLICT (source, family, agreement_type, agreement_number, tract) DO UPDATE SET
       source_layer = excluded.source_layer,
       agreement_type = excluded.agreement_type,
       status = excluded.status,
@@ -61,7 +61,7 @@ export function prepareUpsert(db: DB, table: DispositionTable = "dispositions"):
       source: d.source,
       family: d.family,
       sourceLayer: d.sourceLayer ?? null,
-      agreementType: d.agreementType ?? null,
+      agreementType: d.agreementType ?? "",
       agreementNumber: d.agreementNumber,
       tract: d.tract ?? "",
       status: d.status ?? null,

@@ -205,6 +205,17 @@ describe("PNG mineral ingest (offline)", () => {
     expect(total.n).toBe(3);
   });
 
+  it("preserves the same agreement and tract when they occur in different families", async () => {
+    mockArcGis(FIXTURE.features.slice(0, 1));
+
+    const result = await ingestMineralSources(db, BASE_URL, [PNG_SOURCE, OIL_SANDS_SOURCE]);
+
+    expect(result.rows).toBe(2);
+    const collisions = getByAgreementNumber(db, "0512345");
+    expect(collisions).toHaveLength(2);
+    expect(collisions.map((row) => row.family).sort()).toEqual(["oil_sands", "png"]);
+  });
+
   it("rejects a catastrophic row-count drop before touching live data", async () => {
     await ingestMineralSource(db, BASE_URL, PNG_SOURCE);
     mockArcGis(FIXTURE.features.slice(0, 1));

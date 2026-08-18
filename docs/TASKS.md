@@ -94,8 +94,8 @@ _Last updated: 2026-08-18 · `main` @ `4d706a0`_
 
 - 🔨 **#17 — Atomic, observable mineral refresh.** Stage and validate all enabled GeoView layers,
   publish them as one SQLite transaction, delete rows removed upstream, preserve the prior snapshot
-  on any failure, log batch/per-layer outcomes, warn about stale data in the header, and document
-  weekly scheduling.
+  on any failure, preserve agreement-number collisions across families and legacy agreement types,
+  log batch/per-layer outcomes, warn about stale data in the header, and document weekly scheduling.
 
 ## ⬜ Next up
 

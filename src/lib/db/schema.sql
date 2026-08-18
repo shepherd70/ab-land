@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS dispositions (
   source               TEXT NOT NULL,            -- 'geoview' | 'altalis'
   family               TEXT NOT NULL,            -- png | oil_sands | coal | minerals | brine | geothermal | carbon_seq | pore_space | surface
   source_layer         TEXT,                     -- service/layer the row came from
-  agreement_type       TEXT,
+  agreement_type       TEXT NOT NULL DEFAULT '',
   agreement_number     TEXT NOT NULL,
   tract                TEXT,
   status               TEXT,
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS dispositions (
   geometry_geojson     TEXT,                     -- GeoJSON Polygon/MultiPolygon (WGS84)
   geometry_simplified_geojson TEXT,              -- map-simplified copy (~10 m DP); NULL -> serve geometry_geojson
   ingested_at          TEXT NOT NULL,
-  UNIQUE (source, agreement_number, tract)
+  UNIQUE (source, family, agreement_type, agreement_number, tract)
 );
 
 CREATE INDEX IF NOT EXISTS idx_disp_holder_norm ON dispositions (holder_norm);

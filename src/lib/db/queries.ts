@@ -72,7 +72,7 @@ export function rowToDisposition(row: DbRow): Disposition {
     source: row.source as Disposition["source"],
     family: row.family as Disposition["family"],
     sourceLayer: row.source_layer ?? undefined,
-    agreementType: row.agreement_type ?? undefined,
+    agreementType: row.agreement_type || undefined,
     agreementNumber: row.agreement_number,
     tract: row.tract ?? undefined,
     status: row.status ?? undefined,
@@ -167,10 +167,31 @@ function searchByAts(
 }
 
 /** All tracts of a given agreement number (full geometry included). */
-export function getByAgreementNumber(db: DB, agreementNumber: string): Disposition[] {
+export function getByAgreementNumber(
+  db: DB,
+  agreementNumber: string,
+  identity: { source?: string; family?: string; agreementType?: string } = {},
+): Disposition[] {
+  const clauses = ["agreement_number = @agreementNumber"];
+  const bind: Record<string, unknown> = { agreementNumber };
+  if (identity.source) {
+    clauses.push("source = @source");
+    bind.source = identity.source;
+  }
+  if (identity.family) {
+    clauses.push("family = @family");
+    bind.family = identity.family;
+  }
+  if (identity.agreementType) {
+    clauses.push("agreement_type = @agreementType");
+    bind.agreementType = identity.agreementType;
+  }
   const rows = db
-    .prepare(`SELECT * FROM dispositions WHERE agreement_number = ? ORDER BY tract`)
-    .all(agreementNumber) as DbRow[];
+    .prepare(
+      `SELECT * FROM dispositions WHERE ${clauses.join(" AND ")}
+       ORDER BY source, family, agreement_type, tract`,
+    )
+    .all(bind) as DbRow[];
   return rows.map(rowToDisposition);
 }
 
@@ -182,9 +203,14 @@ export interface AgreementKey {
   number: string;
   family: MineralFamily;
   source: string;
+  type?: string;
 }
 
-const AGREEMENT_WHERE = `agreement_number = @number AND family = @family AND source = @source`;
+function agreementWhere(key: AgreementKey): string {
+  return `agreement_number = @number AND family = @family AND source = @source${
+    key.type ? " AND agreement_type = @type" : ""
+  }`;
+}
 
 /**
  * The tracts of one agreement, with full geometry, for the map's selection
@@ -193,7 +219,7 @@ const AGREEMENT_WHERE = `agreement_number = @number AND family = @family AND sou
  */
 export function agreementFeatures(db: DB, key: AgreementKey): Disposition[] {
   const rows = db
-    .prepare(`SELECT * FROM dispositions WHERE ${AGREEMENT_WHERE} ORDER BY tract`)
+    .prepare(`SELECT * FROM dispositions WHERE ${agreementWhere(key)} ORDER BY tract`)
     .all(key) as DbRow[];
   return rows.map(rowToDisposition);
 }
@@ -214,7 +240,7 @@ export function agreementBounds(
               MIN(bbox_minx) AS minx, MIN(bbox_miny) AS miny,
               MAX(bbox_maxx) AS maxx, MAX(bbox_maxy) AS maxy
        FROM dispositions
-       WHERE ${AGREEMENT_WHERE} AND geometry_geojson IS NOT NULL`,
+       WHERE ${agreementWhere(key)} AND geometry_geojson IS NOT NULL`,
     )
     .get(key) as {
     tracts: number;
@@ -410,14 +436,14 @@ export function listByCompany(
  * matching row. The company page renders one page of holdings, so these totals
  * cannot be derived from the rows it holds. One agreement can span several
  * tracts, so "N agreements" is a DISTINCT count of the natural key's
- * (source, family, agreement_number) — never the row count.
+ * (source, family, agreement_type, agreement_number) — never the row count.
  */
 export function companyHoldingsSummary(db: DB, company: string): HoldingsSummary {
   const { clause, bind } = holderNormClause(company, "holder_norm");
   const row = db
     .prepare(
       `SELECT COUNT(*) AS parcels,
-              COUNT(DISTINCT source || '/' || family || '/' || agreement_number) AS agreements
+              COUNT(DISTINCT source || '/' || family || '/' || agreement_type || '/' || agreement_number) AS agreements
        FROM dispositions WHERE ${clause}`,
     )
     .get(bind) as { parcels: number; agreements: number };

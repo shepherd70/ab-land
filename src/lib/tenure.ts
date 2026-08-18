@@ -152,12 +152,12 @@ export function targetSubstanceLabel(family: Family): string {
 
 /**
  * Agreement-level vs parcel-level counts for a company's holdings. One
- * agreement can span several tracts (natural key source+number+tract), so
- * "N agreements" must never be read off the row count. Computed in SQL over
- * every matching row — see `companyHoldingsSummary` in lib/db/queries.
+ * agreement can span several tracts, so "N agreements" must never be read off
+ * the row count. Computed in SQL over every matching row — see
+ * `companyHoldingsSummary` in lib/db/queries.
  */
 export interface HoldingsSummary {
-  /** Distinct agreements: unique (source, family, agreement_number). */
+  /** Distinct agreements: unique (source, family, agreement_type, agreement_number). */
   agreements: number;
   /** Raw rows — one per tract/parcel. */
   parcels: number;

@@ -10,6 +10,7 @@
  */
 import Link from "next/link";
 import type { Disposition } from "@/lib/types";
+import { holdingHref } from "@/lib/holding_href";
 import { formatAgreementType, formatExpiry, isApplicationType } from "@/lib/tenure";
 
 export function ResultsTable({ rows }: { rows: Disposition[] }) {
@@ -28,12 +29,15 @@ export function ResultsTable({ rows }: { rows: Disposition[] }) {
       <tbody>
         {rows.map((d) => (
           <tr
-            key={d.id ?? `${d.source}-${d.family}-${d.agreementNumber}-${d.tract ?? ""}`}
+            key={
+              d.id ??
+              `${d.source}-${d.family}-${d.agreementType ?? ""}-${d.agreementNumber}-${d.tract ?? ""}`
+            }
             className="border-b border-zinc-100 dark:border-zinc-900"
           >
             <td className="py-2 pr-4">
               <Link
-                href={`/holdings/${encodeURIComponent(d.agreementNumber)}`}
+                href={holdingHref(d)}
                 className="font-medium underline-offset-2 hover:underline"
               >
                 {d.agreementNumber}
