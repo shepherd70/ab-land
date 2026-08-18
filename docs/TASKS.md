@@ -60,28 +60,37 @@ _Last updated: 2026-07-19 · `main` @ `69adfb1`_
   showed ALL families; both paths now short-circuit to an empty FeatureCollection. Deliberately
   skipped `clusterMaxZoom`/`maxzoom` tuning — freeze fixed, tuning changes cluster visuals.
 
-- ✅ **#14 — Map-first UI (PR #20)** — the home page is the province-wide zoomable explorer;
-  browse → zoom → click a parcel → holding. Search moved onto the map as a floating overlay
+- ✅ **#14 — Map-first home** — the home page is now the province-wide zoomable explorer; browse →
+  zoom → click a parcel → holding. Search moved onto the map as a floating overlay
   (`MapSearch.tsx`): debounced `/api/search` (auto kind), company hits link to profiles, parcel
   hits zoom to and highlight the agreement (all tracts, via `/api/holdings/[id]` geometry, drawn
   on a `selected-agreement` source that stays visible at any zoom). `/map` redirects to `/`;
   `SearchPanel.tsx` and the search-first home are gone; header/back-links point at the map.
 
+- ✅ **#15 — Application rows badged, not excluded** — geothermal/72's `A60` and PNG/31's two
+  `A59` rows stay in search/map views (faithful to the source, like the sentinels and the
+  "Type 010" fallback) but now carry an explicit amber badge: `isApplicationType` in
+  `lib/tenure.ts` recognizes `A`-prefixed codes even when the base type is unmapped (where the
+  "– application" label suffix cannot appear); `ResultsTable` chips the agreement number (covers
+  search + company profiles), `HoldingDetail` shows a "not a granted agreement" callout, and the
+  `MapExplorer` popup gets an "Application — not granted tenure" line.
+
+- ✅ **#16 — Simplified geometry column** — giant parcels (max ~3.5 MB of natural-boundary
+  vertices) were re-sent whole per viewport move. Ingest now stores a Douglas-Peucker copy
+  (`simplifyForMap` in `lib/spatial/geo`: ~10 m tolerance — invisible at polygon zooms ≥10 —
+  (Multi)Polygon only, skipped under 64 vertices or <20% saving, degenerate rings rejected) in
+  `dispositions.geometry_simplified_geojson`; `/api/map/features` serves it via `COALESCE`,
+  holding-detail keeps full fidelity. `applySchema` gained an additive `ALTER TABLE` migration
+  and `db:init` a one-time backfill (verified: dense parcel 16 kB → 2.5 kB, lean rectangle
+  skipped, re-run is a no-op).
+
 ## 🔨 In progress
 
-- _(nothing active — `main` is clean and CI is green)_
+- _(nothing active)_
 
 ## ⬜ Next up
 
-- _(empty — the queued work is the two Map follow-ups below)_
-
-## ⬜ Map follow-ups
-
-- ⬜ **Simplified geometry column.** Giant parcels (max ~3.5 MB) are re-sent whole per viewport move;
-  add an ingest-time simplified-geometry column if panning lags.
-- ⬜ **Application rows in tenure layers.** Geothermal/72 contains `A60` and PNG/31 two `A59` rows
-  (applications, not granted tenure). They're ingested and labeled "– application"; decide whether
-  to exclude or badge them in search/map views.
+- _(empty — the queue is clear)_
 
 ## 💤 Dormant — blocked on external input
 
