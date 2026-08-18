@@ -9,7 +9,12 @@
  * @see CLAUDE.md §1, §5
  */
 import type { Disposition } from "@/lib/types";
-import { formatAgreementType, formatExpiry, targetSubstanceLabel } from "@/lib/tenure";
+import {
+  formatAgreementType,
+  formatExpiry,
+  isApplicationType,
+  targetSubstanceLabel,
+} from "@/lib/tenure";
 
 function Row({ label, value }: { label: string; value?: string | number }) {
   return (
@@ -32,6 +37,12 @@ export function HoldingDetail({ tracts }: { tracts: Disposition[] }) {
 
   return (
     <div>
+      {isApplicationType(d.agreementType) && (
+        <p className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+          <strong>Application</strong> — this record is an application for tenure, not a granted
+          agreement.
+        </p>
+      )}
       <dl className="text-sm">
         <Row label="Agreement" value={d.agreementNumber} />
         <Row label="Type" value={formatAgreementType(d.agreementType, { withCode: true })} />

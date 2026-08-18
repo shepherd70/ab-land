@@ -14,6 +14,7 @@ import {
   agreementTypeLabel,
   formatAgreementType,
   formatExpiry,
+  isApplicationType,
   targetSubstanceLabel,
 } from "../lib/tenure";
 
@@ -48,6 +49,29 @@ describe("agreementTypeLabel", () => {
     expect(agreementTypeLabel(null)).toBeUndefined();
     expect(agreementTypeLabel(undefined)).toBeUndefined();
     expect(agreementTypeLabel("")).toBeUndefined();
+  });
+});
+
+describe("isApplicationType", () => {
+  it("recognizes the live A-prefixed application codes", () => {
+    expect(isApplicationType("A59")).toBe(true); // PNG/31 carries two of these
+    expect(isApplicationType("A60")).toBe(true); // geothermal/72 carries one
+  });
+
+  it("recognizes application codes even when the base type is unmapped", () => {
+    // "010" is deliberately unmapped, so agreementTypeLabel("A10") has no
+    // "– application" suffix to show — the badge must not depend on it.
+    expect(isApplicationType("A10")).toBe(true);
+    expect(agreementTypeLabel("A10")).toBeUndefined();
+  });
+
+  it("rejects granted-tenure codes and absent values", () => {
+    expect(isApplicationType("004")).toBe(false);
+    expect(isApplicationType("060")).toBe(false);
+    expect(isApplicationType("A5")).toBe(false); // not a 2–3 digit code
+    expect(isApplicationType(null)).toBe(false);
+    expect(isApplicationType(undefined)).toBe(false);
+    expect(isApplicationType("")).toBe(false);
   });
 });
 

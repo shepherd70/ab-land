@@ -32,7 +32,7 @@ import {
   familyColorMatchExpression,
   familyLabel,
 } from "@/lib/map/families";
-import { formatAgreementType, formatExpiry } from "@/lib/tenure";
+import { formatAgreementType, formatExpiry, isApplicationType } from "@/lib/tenure";
 import type { Disposition, MineralFamily } from "@/lib/types";
 
 /** Province-wide default view. */
@@ -86,12 +86,16 @@ function popupHtml(props: Record<string, unknown>): string {
   if (props.status) rows.push(`<div>Status: ${escapeHtml(props.status)}</div>`);
   rows.push(`<div>Expiry: ${escapeHtml(formatExpiry(props.currentExpiryDate as string | null))}</div>`);
   if (props.areaHa != null) rows.push(`<div>${escapeHtml(props.areaHa)} ha</div>`);
+  const applicationBadge = isApplicationType(props.agreementType as string | null)
+    ? `<div class="mb-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">Application — not granted tenure</div>`
+    : "";
   return `
     <div class="text-xs leading-5">
       <div class="font-semibold">${escapeHtml(familyLabel(String(props.family ?? "")))}</div>
       <div class="text-zinc-500">Agreement ${escapeHtml(agreement)}${
         props.tract ? `-${escapeHtml(props.tract)}` : ""
       }</div>
+      ${applicationBadge}
       ${rows.join("")}
       <a href="${href}" class="mt-1 inline-block font-medium underline">View holding →</a>
     </div>`;

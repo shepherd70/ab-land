@@ -13,8 +13,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applySchema, openDb, type DB } from "../lib/db/client";
 import { ingestMineralSource } from "../lib/ingest/mineral_adapter";
+import { normalizePng } from "../lib/ingest/normalize";
 import { getByAgreementNumber, searchDispositions } from "../lib/db/queries";
 import type { SourceDef } from "../lib/types";
+import type { ArcGisFeature } from "../lib/schemas";
 
 const FIXTURE = JSON.parse(
   readFileSync(join(process.cwd(), "src/test/fixtures/png_layer31.geojson"), "utf8"),
@@ -133,5 +135,43 @@ describe("PNG mineral ingest (offline)", () => {
     expect(rows).toBe(3);
     const total = db.prepare("SELECT COUNT(*) AS n FROM dispositions").get() as { n: number };
     expect(total.n).toBe(3);
+  });
+});
+
+describe("simplified geometry at ingest", () => {
+  /** A minimal ArcGIS feature wrapping the given polygon ring. */
+  const featureWithRing = (ring: [number, number][]): ArcGisFeature => ({
+    type: "Feature",
+    geometry: { type: "Polygon", coordinates: [ring] },
+    properties: { AgreementNumber: "0999999", AgreementType: "004", Tract: "1" },
+  });
+
+  it("stores a map-simplified copy for dense polygons only", () => {
+    // Dense near-circle (300 vertices) — the giant-parcel shape worth copying.
+    const dense: [number, number][] = [];
+    for (let i = 0; i < 300; i++) {
+      const t = (2 * Math.PI * i) / 300;
+      dense.push([-114 + 0.05 * Math.cos(t), 54 + 0.05 * Math.sin(t)]);
+    }
+    dense.push([...dense[0]]);
+    const simplified = normalizePng(featureWithRing(dense), "test/31");
+    expect(simplified.geometrySimplifiedGeoJSON).toBeTruthy();
+    expect(simplified.geometrySimplifiedGeoJSON!.length).toBeLessThan(
+      simplified.geometryGeoJSON!.length,
+    );
+
+    // The common DLS rectangle — already lean, no copy stored.
+    const lean = normalizePng(
+      featureWithRing([
+        [-114, 54],
+        [-113.99, 54],
+        [-113.99, 54.01],
+        [-114, 54.01],
+        [-114, 54],
+      ]),
+      "test/31",
+    );
+    expect(lean.geometrySimplifiedGeoJSON).toBeUndefined();
+    expect(lean.geometryGeoJSON).toBeTruthy();
   });
 });
