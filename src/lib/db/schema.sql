@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS dispositions (
   bbox_maxx            REAL,
   bbox_maxy            REAL,
   geometry_geojson     TEXT,                     -- GeoJSON Polygon/MultiPolygon (WGS84)
+  geometry_simplified_geojson TEXT,              -- map-simplified copy (~10 m DP); NULL -> serve geometry_geojson
   ingested_at          TEXT NOT NULL,
   UNIQUE (source, agreement_number, tract)
 );

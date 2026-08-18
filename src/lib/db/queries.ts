@@ -46,13 +46,24 @@ interface DbRow {
   ingested_at: string;
 }
 
-/** Summary columns (geometry omitted) — all aliased to `d` for join safety. */
-const SUMMARY_COLS = `
+/** Non-geometry columns — all aliased to `d` for join safety. */
+const BASE_COLS = `
   d.id, d.source, d.family, d.source_layer, d.agreement_type, d.agreement_number, d.tract, d.status,
   d.holder_desrep, d.holder_desrep_id, d.participants, d.holder_norm,
   d.term_date, d.current_expiry_date, d.continuation_date, d.cancel_date, d.zone_desc, d.target_substance,
-  d.area_ha, d.centroid_lon, d.centroid_lat, d.bbox_minx, d.bbox_miny, d.bbox_maxx, d.bbox_maxy,
-  NULL AS geometry_geojson, d.ingested_at`;
+  d.area_ha, d.centroid_lon, d.centroid_lat, d.bbox_minx, d.bbox_miny, d.bbox_maxx, d.bbox_maxy`;
+
+/** Summary columns (geometry omitted). */
+const SUMMARY_COLS = `${BASE_COLS}, NULL AS geometry_geojson, d.ingested_at`;
+
+/**
+ * Map-serving columns: the ingest-time simplified copy when one is stored
+ * (dense parcels — see simplifyForMap in lib/spatial/geo), else the full
+ * polygon. Keeps repeated viewport fetches small; detail views bypass this
+ * and read the full geometry.
+ */
+const MAP_GEOMETRY_COLS = `${BASE_COLS},
+  COALESCE(d.geometry_simplified_geojson, d.geometry_geojson) AS geometry_geojson, d.ingested_at`;
 
 /** Map a DB row to the domain Disposition. */
 export function rowToDisposition(row: DbRow): Disposition {
@@ -194,10 +205,11 @@ interface ViewportOpts {
 }
 
 /**
- * Dispositions whose bounding box overlaps the given viewport, with full
- * geometry for rendering. Backed by the `dispositions_rtree` spatial index. The
- * R*Tree stores 32-bit float bounds, so it may over-include a few edge parcels;
- * for a map viewport that's harmless, so no exact refinement is done.
+ * Dispositions whose bounding box overlaps the given viewport, with geometry
+ * for rendering (the simplified copy when stored, else the full polygon).
+ * Backed by the `dispositions_rtree` spatial index. The R*Tree stores 32-bit
+ * float bounds, so it may over-include a few edge parcels; for a map viewport
+ * that's harmless, so no exact refinement is done.
  */
 export function featuresInViewport(
   db: DB,
@@ -222,7 +234,7 @@ export function featuresInViewport(
     clauses.push(holder.clause);
     Object.assign(bind, holder.bind);
   }
-  const sql = `SELECT d.* FROM dispositions d
+  const sql = `SELECT ${MAP_GEOMETRY_COLS} FROM dispositions d
     JOIN dispositions_rtree r ON r.id = d.id
     WHERE r.minx <= @maxx AND r.maxx >= @minx AND r.miny <= @maxy AND r.maxy >= @miny
       ${clauses.length ? `AND ${clauses.join(" AND ")}` : ""}
