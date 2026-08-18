@@ -9,7 +9,7 @@
 
 **Legend:** ✅ done · 🔨 in progress · ⬜ queued · 💤 dormant (blocked on external input) · 🚫 out of scope
 
-_Last updated: 2026-07-19 · `main` @ `69adfb1`_
+_Last updated: 2026-08-18 · `main` @ `4d706a0`_
 
 ---
 
@@ -84,18 +84,23 @@ _Last updated: 2026-07-19 · `main` @ `69adfb1`_
   and `db:init` a one-time backfill (verified: dense parcel 16 kB → 2.5 kB, lean rectangle
   skipped, re-run is a no-op).
 
+- ✅ **PR #20 review follow-ups.** Ten map-first defects fixed on
+  `fix/pr20-review-followups`: definite-height app shell; robust clear, Escape, outside-click,
+  failure, cancellation, rapid-selection, and pre-map-load behavior; selection geometry moved
+  off the main thread through `/api/map/agreement`; unused `/api/holdings/[id]` removed. Merged
+  as PR #22.
+
 ## 🔨 In progress
 
-- 🔨 **#20 review follow-ups.** Ten defects found reviewing the map-first PR are fixed on
-  `fix/pr20-review-followups`. The app shell now has a definite-height flex layout; `MapSearch`
-  correctly handles clear, Escape, outside clicks, failures, request cancellation, rapid
-  selection changes, and selections made before map load. Selection geometry moves off the main
-  thread through `/api/map/agreement`, with a bounds-only variant for framing and a busy state;
-  the now-unused `/api/holdings/[id]` route is removed. Awaiting PR and merge.
+- 🔨 **#17 — Atomic, observable mineral refresh.** Stage and validate all enabled GeoView layers,
+  publish them as one SQLite transaction, delete rows removed upstream, preserve the prior snapshot
+  on any failure, log batch/per-layer outcomes, warn about stale data in the header, and document
+  weekly scheduling.
 
 ## ⬜ Next up
 
-- _(empty — the queue is clear)_
+- ⬜ **#18 — Authoritative ATS search.** Replace regular-grid approximation with an offline,
+  indexed ingest of the open GeoView `ATS_Grid_Ext_PROD` geometry.
 
 ## 💤 Dormant — blocked on external input
 
@@ -108,6 +113,9 @@ _Last updated: 2026-07-19 · `main` @ `69adfb1`_
 ## 🧱 Infra & quality
 
 - ✅ **CI** — GitHub Actions (`.github/workflows/ci.yml`): `npm ci → lint → typecheck → test → build` on every PR and push to `main` (Node 24).
-- ✅ **Test suites (8)** — ATS parsing (`ats`), company matching (`company_names`, `company_aliases` — now also covers `listByCompany` paging and `companyHoldingsSummary`), spatial helpers (`geo`, `ats_grid`, `ats_search`), basemap config (`basemap`), offline minerals ingest (`ingest_minerals`).
-- ✅ **Route-handler tests** — all 4 API handlers covered against temp SQLite fixtures: map handlers in `api_map.test.ts`, and `search` / `holdings/[id]` in `api_routes.test.ts` (FTS company search, agreement prefix, route-level ATS auto-detection, 400s, summary-vs-full-geometry contracts).
+- ✅ **Test suites (13 files)** — ATS parsing/search, company matching and paging, spatial helpers,
+  basemap config, offline atomic mineral ingest, ingest health, and tenure formatting.
+- ✅ **Route-handler tests** — all 4 API handlers covered against temp SQLite fixtures: map
+  handlers in `api_map.test.ts`, and search in `api_routes.test.ts` (FTS company search, agreement
+  prefix, route-level ATS auto-detection, 400s, summary-vs-full-geometry contracts).
 - ⬜ **Dependency hygiene** — 2 moderate postcss advisories inside Next's build toolchain are accepted (build-time only, single-user local app). Never `npm audit fix --force` (see memory `ab-land-npm-audit-fix-force`); revisit when Next bumps its bundled postcss.

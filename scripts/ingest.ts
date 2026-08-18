@@ -9,7 +9,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { applySchema, openDb } from "../src/lib/db/client";
-import { ingestMineralSource } from "../src/lib/ingest/mineral_adapter";
+import { ingestMineralSources } from "../src/lib/ingest/mineral_adapter";
 import { ingestSurfaceFiles } from "../src/lib/ingest/surface_adapter";
 import { ARCGIS_BASE_URL, enabledMineralSources } from "../config/sources";
 
@@ -22,11 +22,13 @@ async function main(): Promise<void> {
   const started = Date.now();
   let total = 0;
 
-  for (const src of enabledMineralSources()) {
-    process.stdout.write(`Ingesting ${src.family} (${src.service}/${src.layerId}) ... `);
-    const { rows } = await ingestMineralSource(db, ARCGIS_BASE_URL, src);
-    total += rows;
-    console.log(`${rows} rows`);
+  const mineral = await ingestMineralSources(db, ARCGIS_BASE_URL, enabledMineralSources());
+  total += mineral.rows;
+  for (const result of mineral.sources) {
+    console.log(
+      `${result.family} (${result.sourceLayer}): ${result.rows} rows, ` +
+        `${result.rowsDeleted} stale removed`,
+    );
   }
 
   const altalisDir = process.env.ALTALIS_DIR ?? "./data/altalis";

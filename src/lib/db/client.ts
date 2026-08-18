@@ -48,4 +48,13 @@ export function applySchema(db: DB, schemaPath: string = SCHEMA_PATH): void {
   if (!hasColumn(db, "dispositions", "geometry_simplified_geojson")) {
     db.exec("ALTER TABLE dispositions ADD COLUMN geometry_simplified_geojson TEXT");
   }
+  if (!hasColumn(db, "ingest_runs", "parent_run_id")) {
+    db.exec("ALTER TABLE ingest_runs ADD COLUMN parent_run_id INTEGER");
+  }
+  if (!hasColumn(db, "ingest_runs", "source_layer")) {
+    db.exec("ALTER TABLE ingest_runs ADD COLUMN source_layer TEXT");
+  }
+  if (!hasColumn(db, "ingest_runs", "rows_deleted")) {
+    db.exec("ALTER TABLE ingest_runs ADD COLUMN rows_deleted INTEGER DEFAULT 0");
+  }
 }

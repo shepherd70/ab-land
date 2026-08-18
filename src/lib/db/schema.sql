@@ -92,11 +92,14 @@ END;
 -- Tracks each ingest run for observability.
 CREATE TABLE IF NOT EXISTS ingest_runs (
   id          INTEGER PRIMARY KEY,
+  parent_run_id INTEGER,
   started_at  TEXT NOT NULL,
   finished_at TEXT,
   source      TEXT,
   family      TEXT,
+  source_layer TEXT,
   rows_upserted INTEGER DEFAULT 0,
-  status      TEXT,                              -- 'ok' | 'error'
+  rows_deleted INTEGER DEFAULT 0,
+  status      TEXT,                              -- 'running' | 'ok' | 'error'
   message     TEXT
 );

@@ -11,10 +11,12 @@ import type { Disposition } from "../types";
 
 export type UpsertFn = (d: Disposition) => void;
 
+type DispositionTable = "dispositions" | "ingest_dispositions";
+
 /** Build a prepared upsert bound to the given DB connection. */
-export function prepareUpsert(db: DB): UpsertFn {
+export function prepareUpsert(db: DB, table: DispositionTable = "dispositions"): UpsertFn {
   const stmt = db.prepare(`
-    INSERT INTO dispositions (
+    INSERT INTO ${table} (
       source, family, source_layer, agreement_type, agreement_number, tract, status,
       holder_desrep, holder_desrep_id, participants, holder_norm,
       term_date, current_expiry_date, continuation_date, cancel_date, zone_desc, target_substance,

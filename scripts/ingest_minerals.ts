@@ -8,7 +8,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { applySchema, openDb } from "../src/lib/db/client";
-import { ingestMineralSource } from "../src/lib/ingest/mineral_adapter";
+import { ingestMineralSources } from "../src/lib/ingest/mineral_adapter";
 import { ARCGIS_BASE_URL, enabledMineralSources } from "../config/sources";
 
 async function main(): Promise<void> {
@@ -17,10 +17,14 @@ async function main(): Promise<void> {
   const db = openDb(dbPath);
   applySchema(db);
 
-  for (const src of enabledMineralSources()) {
-    const { rows } = await ingestMineralSource(db, ARCGIS_BASE_URL, src);
-    console.log(`${src.family}: ${rows} rows`);
+  const summary = await ingestMineralSources(db, ARCGIS_BASE_URL, enabledMineralSources());
+  for (const result of summary.sources) {
+    console.log(
+      `${result.family} (${result.sourceLayer}): ${result.rows} rows, ` +
+        `${result.rowsDeleted} stale removed`,
+    );
   }
+  console.log(`Published ${summary.rows} rows; removed ${summary.rowsDeleted} stale rows`);
   db.close();
 }
 

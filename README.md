@@ -41,6 +41,17 @@ full architecture, data model, and guardrails.
 - `npm test` / `npm run test:watch` — Vitest
 - `npm run typecheck` — `tsc --noEmit`
 
+## Refresh safety and freshness
+
+Mineral ingest is a snapshot operation: all enabled GeoView layers are downloaded into a local
+staging table, validated, and then published together in one short SQLite transaction. A failed
+layer leaves the previous complete snapshot untouched. Rows that disappeared upstream are removed
+on a successful publish, and every attempt is recorded in `ingest_runs`.
+
+The header shows the last complete refresh and warns after eight days by default. See
+**[docs/OPERATIONS.md](./docs/OPERATIONS.md)** for weekly scheduling, failure checks, and the
+guarded override for a verified large upstream row-count change.
+
 ## Layout
 
 ```
