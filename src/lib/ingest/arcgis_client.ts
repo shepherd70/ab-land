@@ -7,7 +7,11 @@
  * Data source: GeoView ArcGIS REST (OGL-Alberta)
  * @see CLAUDE.md §2 (Tier A), §11
  */
-import { ArcGisFeatureCollection, type ArcGisFeature } from "../schemas";
+import {
+  ArcGisFeatureCollection,
+  ArcGisFeatureCount,
+  type ArcGisFeature,
+} from "../schemas";
 
 export interface ArcGisQueryOptions {
   /** Services folder base, e.g. https://.../rest/services/Geoview */
@@ -20,6 +24,10 @@ export interface ArcGisQueryOptions {
   outFields?: string;
   pageSize?: number;
   outSR?: number;
+  /** Stable server-side ordering, important for long paged snapshots. */
+  orderByFields?: string;
+  /** Decimal places retained in returned coordinates. */
+  geometryPrecision?: number;
   /** Delay between pages, ms. */
   throttleMs?: number;
   signal?: AbortSignal;
@@ -42,6 +50,8 @@ export async function* queryFeatures(
     outFields = "*",
     pageSize = Number(process.env.INGEST_PAGE_SIZE) || 1000,
     outSR = Number(process.env.INGEST_OUT_SR) || 4326,
+    orderByFields,
+    geometryPrecision,
     throttleMs = 200,
     signal,
   } = opts;
@@ -55,6 +65,10 @@ export async function* queryFeatures(
     url.searchParams.set("f", "geojson");
     url.searchParams.set("resultOffset", String(offset));
     url.searchParams.set("resultRecordCount", String(pageSize));
+    if (orderByFields) url.searchParams.set("orderByFields", orderByFields);
+    if (geometryPrecision != null) {
+      url.searchParams.set("geometryPrecision", String(geometryPrecision));
+    }
 
     const res = await fetch(url, { signal });
     if (!res.ok) {
@@ -69,4 +83,21 @@ export async function* queryFeatures(
     if (page.features.length < pageSize) break;
     if (throttleMs) await sleep(throttleMs);
   }
+}
+
+/** Fetch and validate the number of records matching an ArcGIS query. */
+export async function queryFeatureCount(
+  opts: Pick<ArcGisQueryOptions, "baseUrl" | "service" | "layerId" | "where" | "signal">,
+): Promise<number> {
+  const url = new URL(`${opts.baseUrl}/${opts.service}/MapServer/${opts.layerId}/query`);
+  url.searchParams.set("where", opts.where ?? "1=1");
+  url.searchParams.set("returnCountOnly", "true");
+  url.searchParams.set("f", "json");
+  const res = await fetch(url, { signal: opts.signal });
+  if (!res.ok) {
+    throw new Error(
+      `ArcGIS count failed: ${res.status} ${res.statusText} — ${opts.service}/${opts.layerId}`,
+    );
+  }
+  return ArcGisFeatureCount.parse(await res.json()).count;
 }

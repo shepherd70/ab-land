@@ -12,7 +12,11 @@
  */
 import { existsSync, readdirSync } from "node:fs";
 import type { DB } from "../db/client";
-import type { IngestResult } from "./mineral_adapter";
+
+export interface SurfaceIngestResult {
+  family: "surface";
+  rows: number;
+}
 
 /** Files we know how to attempt to read (extend as formats are supported). */
 const SUPPORTED = /\.(geojson|json)$/i;
@@ -22,7 +26,7 @@ const SUPPORTED = /\.(geojson|json)$/i;
  * empty or missing — surface support stays dormant. Throws a clear TODO if files
  * are present but the field mapping has not been implemented yet.
  */
-export async function ingestSurfaceFiles(db: DB, dir: string): Promise<IngestResult> {
+export async function ingestSurfaceFiles(db: DB, dir: string): Promise<SurfaceIngestResult> {
   void db; // will be used once the field mapping is implemented
   const files = existsSync(dir)
     ? readdirSync(dir).filter((f) => SUPPORTED.test(f))

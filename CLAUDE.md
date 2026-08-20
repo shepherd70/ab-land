@@ -37,6 +37,10 @@ local SQLite database and lets the user:
 - **Licence: Open Government Licence – Alberta.** Attribute it in the UI + README.
 - Always request `outSR=4326` (WGS84 lon/lat) so geometry is MapLibre-ready.
 - Be polite: page at maxRecordCount, throttle, cache to the DB. Never hammer the service.
+- **ATS legal locations:** `ATS_Grid_Ext_PROD/MapServer/4` = authoritative Legal Sub-Division
+  polygons. It is open GeoView data under the same licence. `npm run ingest:ats` caches the roughly
+  four-million-cell layer separately; request-time searches never call ArcGIS. Quarter and section
+  queries select four or sixteen official LSD cells rather than approximating a regular grid.
 
 ### Tier B — LICENSED, manual import only (surface leases)
 Surface dispositions (**DIDs / DIDs+**) holder data is the **Altalis** "Disposition Mapping"
@@ -69,9 +73,12 @@ Next.js (App Router) + TypeScript (strict) + Tailwind · SQLite via `better-sqli
 `tsx` to run TS scripts · `vitest` for tests. No data-source secrets (data is open).
 
 ## 5. Data model — normalized "disposition core"
-One table `dispositions` (every source maps into it) + an FTS5 shadow table for name search.
+One table `dispositions` (every tenure source maps into it) + an FTS5 shadow table for name search,
+and a separate `ats_lsd_cells` lookup cache for official legal-location geometry.
 See `src/lib/db/schema.sql` and `src/lib/types.ts`. Key points:
-- Natural key: `UNIQUE(source, agreement_number, tract)`.
+- Natural key: `UNIQUE(source, family, agreement_type, agreement_number, tract)`; legacy agreement
+  numbers overlap across both families and types, so all five fields are required to prevent one
+  distinct agreement parcel overwriting another.
 - `holder_norm` is computed in `lib/matching/company_names.ts` (handles Ltd/Inc/ULC variants,
   predecessors after transfers). **Matching is heuristic — never assert exactness or ownership.**
 - All geometry stored as WGS84 (EPSG:4326) GeoJSON, plus precomputed bbox + centroid columns.
@@ -128,7 +135,7 @@ all data out of git.
 - Add secrets to the repo; if ever needed, use `.env` (gitignored).
 
 ## 12. Common commands
-`npm run dev` · `npm run db:init` · `npm run ingest` (+ `:minerals` / `:surface`) ·
+`npm run dev` · `npm run db:init` · `npm run ingest` (+ `:minerals` / `:surface`) · `npm run ingest:ats` ·
 `npm test` · `npm run typecheck` · `npm run lint` · `npm run build`
 
 ---

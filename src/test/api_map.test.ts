@@ -36,6 +36,7 @@ beforeAll(async () => {
   ) => ({
     source: "geoview" as const,
     family: fam as MapCentroid["family"],
+    agreementType: "004",
     agreementNumber: n,
     tract,
     holderNorm,
@@ -157,7 +158,7 @@ describe("GET /api/map/features", () => {
 
 describe("GET /api/map/agreement", () => {
   const url = (qs: string) => new NextRequest(`http://test/api/map/agreement?${qs}`);
-  const KEY = "number=0500001&family=png&source=geoview";
+  const KEY = "number=0500001&family=png&source=geoview&type=004";
 
   it("returns every tract of the agreement as polygon features", async () => {
     const { GET } = await import("@/app/api/map/agreement/route");
@@ -188,6 +189,13 @@ describe("GET /api/map/agreement", () => {
   it("scopes to the family and source, not the agreement number alone", async () => {
     const { GET } = await import("@/app/api/map/agreement/route");
     const res = GET(url("number=0500001&family=geothermal&source=geoview"));
+    const fc = (await res.json()) as FeatureCollection;
+    expect(fc.features).toEqual([]);
+  });
+
+  it("scopes reused legacy numbers to one agreement type", async () => {
+    const { GET } = await import("@/app/api/map/agreement/route");
+    const res = GET(url("number=0500001&family=png&source=geoview&type=002"));
     const fc = (await res.json()) as FeatureCollection;
     expect(fc.features).toEqual([]);
   });

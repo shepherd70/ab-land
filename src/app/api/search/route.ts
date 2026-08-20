@@ -10,6 +10,7 @@ import type { NextRequest } from "next/server";
 import { SearchParams } from "@/lib/schemas";
 import { openReadOnly } from "@/lib/db/client";
 import { searchDispositions } from "@/lib/db/queries";
+import { AtsGridUnavailableError } from "@/lib/spatial/ats_grid";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,14 @@ export function GET(req: NextRequest) {
 
   try {
     return NextResponse.json({ results: searchDispositions(db, parsed.data) });
+  } catch (error: unknown) {
+    if (error instanceof AtsGridUnavailableError) {
+      return NextResponse.json(
+        { error: "ats_grid_unavailable", message: error.message },
+        { status: 503 },
+      );
+    }
+    throw error;
   } finally {
     db.close();
   }

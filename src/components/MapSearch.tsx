@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Disposition } from "@/lib/types";
 import { familyLabel } from "@/lib/map/families";
+import { holdingHref } from "@/lib/holding_href";
 
 const DEBOUNCE_MS = 300;
 const MIN_QUERY_LEN = 2;
@@ -200,7 +201,10 @@ export function MapSearch({
               <ul>
                 {parcels.map((d) => (
                   <li
-                    key={d.id ?? `${d.source}-${d.family}-${d.agreementNumber}-${d.tract ?? ""}`}
+                    key={
+                      d.id ??
+                      `${d.source}-${d.family}-${d.agreementType ?? ""}-${d.agreementNumber}-${d.tract ?? ""}`
+                    }
                     className="flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                   >
                     <button
@@ -222,7 +226,7 @@ export function MapSearch({
                       </span>
                     </button>
                     <Link
-                      href={`/holdings/${encodeURIComponent(d.agreementNumber)}`}
+                      href={holdingHref(d)}
                       className="shrink-0 text-xs text-zinc-500 underline-offset-2 hover:underline"
                     >
                       Open →

@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS dispositions (
   source               TEXT NOT NULL,            -- 'geoview' | 'altalis'
   family               TEXT NOT NULL,            -- png | oil_sands | coal | minerals | brine | geothermal | carbon_seq | pore_space | surface
   source_layer         TEXT,                     -- service/layer the row came from
-  agreement_type       TEXT,
+  agreement_type       TEXT NOT NULL DEFAULT '',
   agreement_number     TEXT NOT NULL,
   tract                TEXT,
   status               TEXT,
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS dispositions (
   geometry_geojson     TEXT,                     -- GeoJSON Polygon/MultiPolygon (WGS84)
   geometry_simplified_geojson TEXT,              -- map-simplified copy (~10 m DP); NULL -> serve geometry_geojson
   ingested_at          TEXT NOT NULL,
-  UNIQUE (source, agreement_number, tract)
+  UNIQUE (source, family, agreement_type, agreement_number, tract)
 );
 
 CREATE INDEX IF NOT EXISTS idx_disp_holder_norm ON dispositions (holder_norm);
@@ -92,11 +92,31 @@ END;
 -- Tracks each ingest run for observability.
 CREATE TABLE IF NOT EXISTS ingest_runs (
   id          INTEGER PRIMARY KEY,
+  parent_run_id INTEGER,
   started_at  TEXT NOT NULL,
   finished_at TEXT,
   source      TEXT,
   family      TEXT,
+  source_layer TEXT,
   rows_upserted INTEGER DEFAULT 0,
-  status      TEXT,                              -- 'ok' | 'error'
+  rows_deleted INTEGER DEFAULT 0,
+  status      TEXT,                              -- 'running' | 'ok' | 'error'
   message     TEXT
 );
+
+-- Authoritative Alberta Township System cells. Layer 4 is the finest parsed
+-- granularity; quarter and section searches select 4 or 16 LSD polygons by
+-- primary key. WITHOUT ROWID avoids a redundant 4-million-row integer index.
+CREATE TABLE IF NOT EXISTS ats_lsd_cells (
+  meridian         INTEGER NOT NULL,
+  range_no         INTEGER NOT NULL,
+  township         INTEGER NOT NULL,
+  section_no       INTEGER NOT NULL,
+  lsd              INTEGER NOT NULL,
+  bbox_minx        REAL NOT NULL,
+  bbox_miny        REAL NOT NULL,
+  bbox_maxx        REAL NOT NULL,
+  bbox_maxy        REAL NOT NULL,
+  geometry_geojson TEXT NOT NULL,
+  PRIMARY KEY (meridian, range_no, township, section_no, lsd)
+) WITHOUT ROWID;

@@ -23,6 +23,7 @@ export function GET(req: NextRequest) {
     number: sp.get("number") ?? "",
     family: sp.get("family") ?? "",
     source: sp.get("source") ?? "",
+    type: sp.get("type") ?? undefined,
     meta: sp.get("meta") ?? undefined,
   });
 
@@ -51,6 +52,7 @@ export function GET(req: NextRequest) {
     const fc = dispositionsToFeatureCollection(agreementFeatures(db, key), (d) => ({
       agreementNumber: d.agreementNumber,
       tract: d.tract ?? null,
+      source: d.source,
       family: d.family,
       status: d.status ?? null,
       currentExpiryDate: d.currentExpiryDate ?? null,

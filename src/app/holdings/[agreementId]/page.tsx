@@ -1,7 +1,8 @@
 /**
  * Holding detail — all tracts of one agreement, with a map of their polygons.
- * Agreement numbers are only unique per (source, family), so if two families
- * ever share a number, each renders as its own section.
+ * Legacy agreement numbers repeat across families and agreement types, so a
+ * canonical link includes source/family/type query parameters. Bare legacy
+ * links remain useful and render each distinct identity as its own section.
  *
  * @module app/holdings/[agreementId]/page
  * Data source: local SQLite (read-only)
@@ -13,6 +14,7 @@ import type { Disposition } from "@/lib/types";
 import { openReadOnly } from "@/lib/db/client";
 import { getByAgreementNumber } from "@/lib/db/queries";
 import { familyLabel } from "@/lib/map/families";
+import { formatAgreementType } from "@/lib/tenure";
 import { HoldingDetail } from "@/components/HoldingDetail";
 import { MapView } from "@/components/MapView";
 
@@ -20,18 +22,28 @@ export const dynamic = "force-dynamic";
 
 export default async function HoldingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ agreementId: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { agreementId } = await params;
+  const query = await searchParams;
   const id = decodeURIComponent(agreementId);
+
+  const first = (value: string | string[] | undefined): string | undefined =>
+    Array.isArray(value) ? value[0] : value;
 
   let holdings: Disposition[] = [];
   let dbError = false;
   try {
     const db = openReadOnly();
     try {
-      holdings = getByAgreementNumber(db, id);
+      holdings = getByAgreementNumber(db, id, {
+        source: first(query.source),
+        family: first(query.family),
+        agreementType: first(query.type),
+      });
     } finally {
       db.close();
     }
@@ -62,10 +74,10 @@ export default async function HoldingPage({
     );
   }
 
-  // One section per (source, family) group — normally exactly one.
+  // One section per complete agreement identity — normally exactly one.
   const groups = new Map<string, Disposition[]>();
   for (const h of holdings) {
-    const key = `${h.source}/${h.family}`;
+    const key = `${h.source}/${h.family}/${h.agreementType ?? ""}`;
     const g = groups.get(key);
     if (g) g.push(h);
     else groups.set(key, [h]);
@@ -90,14 +102,14 @@ export default async function HoldingPage({
       <h1 className="mt-2 text-2xl font-semibold">Agreement {id}</h1>
       {groups.size > 1 && (
         <p className="mt-1 text-sm text-zinc-500">
-          {groups.size} agreement families share this number; each is shown separately.
+          {groups.size} distinct agreements share this legacy number; each is shown separately.
         </p>
       )}
       {[...groups.entries()].map(([key, tracts]) => (
         <div key={key} className="mt-4">
           {groups.size > 1 && (
             <h2 className="mb-2 text-sm font-semibold text-zinc-500">
-              {familyLabel(tracts[0].family)}
+              {familyLabel(tracts[0].family)} · {formatAgreementType(tracts[0].agreementType)}
             </h2>
           )}
           <HoldingDetail tracts={tracts} />

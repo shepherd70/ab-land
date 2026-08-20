@@ -13,7 +13,9 @@ import type { HoldingsSummary } from "../tenure";
 import { normalizeCompanyName } from "../matching/company_names";
 import { aliasGroupKeys } from "../matching/company_aliases";
 import { parseAts, type AtsLocation } from "../ats";
-import { atsApproxBbox } from "../spatial/ats_grid";
+import { AtsPolygonGeometry } from "../schemas";
+import { atsCellsBbox, authoritativeAtsCells } from "../spatial/ats_grid";
+import { polygonsOverlapArea } from "../spatial/geo";
 
 /** Raw row shape as stored. */
 interface DbRow {
@@ -72,7 +74,7 @@ export function rowToDisposition(row: DbRow): Disposition {
     source: row.source as Disposition["source"],
     family: row.family as Disposition["family"],
     sourceLayer: row.source_layer ?? undefined,
-    agreementType: row.agreement_type ?? undefined,
+    agreementType: row.agreement_type || undefined,
     agreementNumber: row.agreement_number,
     tract: row.tract ?? undefined,
     status: row.status ?? undefined,
@@ -124,8 +126,7 @@ export function searchDispositions(db: DB, params: SearchParams): Disposition[] 
   }
 
   // ATS: explicit kind, or auto when the query parses as a legal land description.
-  // Uses an approximate DLS grid bbox (lib/spatial/ats_grid) as a coarse filter;
-  // the authoritative ATS_Grid_Ext_PROD join is a network-dependent follow-up.
+  // Official LSD polygons are read from the offline ATS_Grid_Ext_PROD cache.
   if (kind === "ats" || kind === "auto") {
     const loc = parseAts(q);
     if (loc) return searchByAts(db, loc, { family, limit, offset });
@@ -145,8 +146,8 @@ export function searchDispositions(db: DB, params: SearchParams): Disposition[] 
 }
 
 /**
- * Dispositions whose stored bbox overlaps the approximate ATS cell. A coarse
- * spatial pre-filter, not an authoritative parcel match (see ats_grid).
+ * Dispositions intersecting the official cached ATS polygon. SQLite's R*Tree
+ * narrows candidates; Turf then performs the exact polygon intersection.
  */
 function searchByAts(
   db: DB,
@@ -154,23 +155,55 @@ function searchByAts(
   opts: { family?: string; limit: number; offset: number },
 ): Disposition[] {
   const { family, limit, offset } = opts;
-  const [minx, miny, maxx, maxy] = atsApproxBbox(loc);
-  const sql = `SELECT ${SUMMARY_COLS} FROM dispositions d
-    WHERE d.bbox_minx IS NOT NULL
-      AND d.bbox_minx <= @maxx AND d.bbox_maxx >= @minx
-      AND d.bbox_miny <= @maxy AND d.bbox_maxy >= @miny
+  const cells = authoritativeAtsCells(db, loc);
+  if (cells.length === 0) return [];
+  const [minx, miny, maxx, maxy] = atsCellsBbox(cells);
+  const sql = `SELECT ${SUMMARY_COLS}, d.geometry_geojson AS match_geometry_geojson
+    FROM dispositions d
+    JOIN dispositions_rtree r ON r.id = d.id
+    WHERE r.minx <= @maxx AND r.maxx >= @minx
+      AND r.miny <= @maxy AND r.maxy >= @miny
+      AND d.geometry_geojson IS NOT NULL
       ${family ? "AND d.family = @family" : ""}
-    ORDER BY d.agreement_number, d.tract LIMIT @limit OFFSET @offset`;
-  const bind: Record<string, unknown> = { minx, miny, maxx, maxy, limit, offset };
+    ORDER BY d.agreement_number, d.tract`;
+  const bind: Record<string, unknown> = { minx, miny, maxx, maxy };
   if (family) bind.family = family;
-  return (db.prepare(sql).all(bind) as DbRow[]).map(rowToDisposition);
+  const candidates = db.prepare(sql).all(bind) as Array<DbRow & { match_geometry_geojson: string }>;
+  return candidates
+    .filter((row) => {
+      const dispositionGeometry = AtsPolygonGeometry.parse(JSON.parse(row.match_geometry_geojson));
+      return cells.some((cell) => polygonsOverlapArea(dispositionGeometry, cell.geometry));
+    })
+    .slice(offset, offset + limit)
+    .map(rowToDisposition);
 }
 
 /** All tracts of a given agreement number (full geometry included). */
-export function getByAgreementNumber(db: DB, agreementNumber: string): Disposition[] {
+export function getByAgreementNumber(
+  db: DB,
+  agreementNumber: string,
+  identity: { source?: string; family?: string; agreementType?: string } = {},
+): Disposition[] {
+  const clauses = ["agreement_number = @agreementNumber"];
+  const bind: Record<string, unknown> = { agreementNumber };
+  if (identity.source) {
+    clauses.push("source = @source");
+    bind.source = identity.source;
+  }
+  if (identity.family) {
+    clauses.push("family = @family");
+    bind.family = identity.family;
+  }
+  if (identity.agreementType) {
+    clauses.push("agreement_type = @agreementType");
+    bind.agreementType = identity.agreementType;
+  }
   const rows = db
-    .prepare(`SELECT * FROM dispositions WHERE agreement_number = ? ORDER BY tract`)
-    .all(agreementNumber) as DbRow[];
+    .prepare(
+      `SELECT * FROM dispositions WHERE ${clauses.join(" AND ")}
+       ORDER BY source, family, agreement_type, tract`,
+    )
+    .all(bind) as DbRow[];
   return rows.map(rowToDisposition);
 }
 
@@ -182,9 +215,14 @@ export interface AgreementKey {
   number: string;
   family: MineralFamily;
   source: string;
+  type?: string;
 }
 
-const AGREEMENT_WHERE = `agreement_number = @number AND family = @family AND source = @source`;
+function agreementWhere(key: AgreementKey): string {
+  return `agreement_number = @number AND family = @family AND source = @source${
+    key.type ? " AND agreement_type = @type" : ""
+  }`;
+}
 
 /**
  * The tracts of one agreement, with full geometry, for the map's selection
@@ -193,7 +231,7 @@ const AGREEMENT_WHERE = `agreement_number = @number AND family = @family AND sou
  */
 export function agreementFeatures(db: DB, key: AgreementKey): Disposition[] {
   const rows = db
-    .prepare(`SELECT * FROM dispositions WHERE ${AGREEMENT_WHERE} ORDER BY tract`)
+    .prepare(`SELECT * FROM dispositions WHERE ${agreementWhere(key)} ORDER BY tract`)
     .all(key) as DbRow[];
   return rows.map(rowToDisposition);
 }
@@ -214,7 +252,7 @@ export function agreementBounds(
               MIN(bbox_minx) AS minx, MIN(bbox_miny) AS miny,
               MAX(bbox_maxx) AS maxx, MAX(bbox_maxy) AS maxy
        FROM dispositions
-       WHERE ${AGREEMENT_WHERE} AND geometry_geojson IS NOT NULL`,
+       WHERE ${agreementWhere(key)} AND geometry_geojson IS NOT NULL`,
     )
     .get(key) as {
     tracts: number;
@@ -410,14 +448,14 @@ export function listByCompany(
  * matching row. The company page renders one page of holdings, so these totals
  * cannot be derived from the rows it holds. One agreement can span several
  * tracts, so "N agreements" is a DISTINCT count of the natural key's
- * (source, family, agreement_number) — never the row count.
+ * (source, family, agreement_type, agreement_number) — never the row count.
  */
 export function companyHoldingsSummary(db: DB, company: string): HoldingsSummary {
   const { clause, bind } = holderNormClause(company, "holder_norm");
   const row = db
     .prepare(
       `SELECT COUNT(*) AS parcels,
-              COUNT(DISTINCT source || '/' || family || '/' || agreement_number) AS agreements
+              COUNT(DISTINCT source || '/' || family || '/' || agreement_type || '/' || agreement_number) AS agreements
        FROM dispositions WHERE ${clause}`,
     )
     .get(bind) as { parcels: number; agreements: number };

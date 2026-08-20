@@ -9,18 +9,43 @@
  * @see CLAUDE.md §10
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { NextRequest } from "next/server";
-import { parseAts } from "@/lib/ats";
-import { atsApproxBbox } from "@/lib/spatial/ats_grid";
+import { normalizeAtsLsd } from "@/lib/ingest/ats_adapter";
+import type { ArcGisFeature } from "@/lib/schemas";
+import type { DB } from "@/lib/db/client";
 import type { Disposition } from "@/lib/types";
 
 const DB_FILE = join(tmpdir(), `ab-land-api-routes-${process.pid}.sqlite`);
 const prevDbPath = process.env.DB_PATH;
 
 const ATS_DESCRIPTOR = "SE-12-034-05-W4";
+const ATS_FIXTURE = JSON.parse(
+  readFileSync(join(process.cwd(), "src/test/fixtures/ats_lsd_layer4.geojson"), "utf8"),
+) as { features: ArcGisFeature[] };
+
+function insertAtsFixture(db: DB): void {
+  const insertAts = db.prepare(
+    `INSERT INTO ats_lsd_cells (
+       meridian, range_no, township, section_no, lsd,
+       bbox_minx, bbox_miny, bbox_maxx, bbox_maxy, geometry_geojson
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  for (const feature of ATS_FIXTURE.features) {
+    const cell = normalizeAtsLsd(feature);
+    insertAts.run(
+      cell.meridian,
+      cell.range,
+      cell.township,
+      cell.section,
+      cell.lsd,
+      ...cell.bbox,
+      cell.geometryGeoJSON,
+    );
+  }
+}
 
 beforeAll(async () => {
   process.env.DB_PATH = DB_FILE;
@@ -29,6 +54,7 @@ beforeAll(async () => {
   const { normalizeCompanyName } = await import("@/lib/matching/company_names");
   const db = openDb(DB_FILE);
   applySchema(db);
+  insertAtsFixture(db);
   const upsert = prepareUpsert(db);
 
   const at = (
@@ -73,8 +99,8 @@ beforeAll(async () => {
   upsert(at("0512345", "01", "ACME ENERGY LTD", box(-114.0, 51.0)));
   upsert(at("0512345", "02", "ACME ENERGY LTD", box(-114.05, 51.02)));
   upsert(at("0698765", "01", "OTHER RESOURCES INC", box(-113.9, 51.1)));
-  // Sits on the ATS cell so the route-level legal-land-description path hits it.
-  upsert(at("0700099", "01", undefined, atsApproxBbox(parseAts(ATS_DESCRIPTOR)!)));
+  // Sits on an official cached ATS cell so the route-level path hits it.
+  upsert(at("0700099", "01", undefined, [-114, 51, -113.99, 51.01]));
 
   db.pragma("wal_checkpoint(TRUNCATE)");
   db.close();
@@ -121,5 +147,29 @@ describe("GET /api/search", () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe("invalid_query");
+  });
+
+  it("returns 503 when an ATS query is valid but the offline cache is empty", async () => {
+    const { openDb } = await import("@/lib/db/client");
+    let writable = openDb(DB_FILE);
+    writable.exec("DELETE FROM ats_lsd_cells");
+    writable.pragma("wal_checkpoint(TRUNCATE)");
+    writable.close();
+
+    try {
+      const { GET } = await import("@/app/api/search/route");
+      const res = GET(
+        new NextRequest(`http://test/api/search?q=${encodeURIComponent(ATS_DESCRIPTOR)}`),
+      );
+      expect(res.status).toBe(503);
+      const body = (await res.json()) as { error: string; message: string };
+      expect(body.error).toBe("ats_grid_unavailable");
+      expect(body.message).toContain("npm run ingest:ats");
+    } finally {
+      writable = openDb(DB_FILE);
+      insertAtsFixture(writable);
+      writable.pragma("wal_checkpoint(TRUNCATE)");
+      writable.close();
+    }
   });
 });

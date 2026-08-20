@@ -34,6 +34,7 @@ import {
   familyLabel,
 } from "@/lib/map/families";
 import { formatAgreementType, formatExpiry, isApplicationType } from "@/lib/tenure";
+import { holdingHref } from "@/lib/holding_href";
 import type { Disposition, MineralFamily } from "@/lib/types";
 
 /** Province-wide default view. */
@@ -80,7 +81,12 @@ function centroidsDataUrl(families: ReadonlySet<MineralFamily>, company?: string
 /** Popup markup for a clicked viewport polygon. All DB strings are escaped. */
 function popupHtml(props: Record<string, unknown>): string {
   const agreement = String(props.agreementNumber ?? "");
-  const href = `/holdings/${encodeURIComponent(agreement)}`;
+  const href = holdingHref({
+    agreementNumber: agreement,
+    source: String(props.source ?? ""),
+    family: String(props.family ?? ""),
+    agreementType: String(props.agreementType ?? ""),
+  });
   const rows: string[] = [];
   if (props.agreementType)
     rows.push(`<div>Type: ${escapeHtml(formatAgreementType(props.agreementType as string))}</div>`);
@@ -467,6 +473,7 @@ export function MapExplorer({
       family: d.family,
       source: d.source,
     });
+    if (d.agreementType) params.set("type", d.agreementType);
     const url = `/api/map/agreement?${params.toString()}`;
     // Overlapping loads coalesce in the worker, last one wins (see the
     // centroids source above).

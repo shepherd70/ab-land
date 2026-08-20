@@ -1,0 +1,69 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-114.00, 51.00], [-113.99, 51.00], [-113.99, 51.01], [-114.00, 51.01], [-114.00, 51.00]]]
+      },
+      "properties": {
+        "ObjectID": 1,
+        "t18809Meridian": 4,
+        "t18809Range": 5,
+        "t18809Township": 34,
+        "t18809Section": 12,
+        "t18809QuarterSection": 1,
+        "t18809Lsd": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-114.01, 51.00], [-114.00, 51.00], [-114.00, 51.01], [-114.01, 51.01], [-114.01, 51.00]]]
+      },
+      "properties": {
+        "ObjectID": 2,
+        "t18809Meridian": 4,
+        "t18809Range": 5,
+        "t18809Township": 34,
+        "t18809Section": 12,
+        "t18809QuarterSection": 1,
+        "t18809Lsd": 2
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-114.01, 51.01], [-114.00, 51.01], [-114.00, 51.02], [-114.01, 51.02], [-114.01, 51.01]]]
+      },
+      "properties": {
+        "ObjectID": 3,
+        "t18809Meridian": 4,
+        "t18809Range": 5,
+        "t18809Township": 34,
+        "t18809Section": 12,
+        "t18809QuarterSection": 1,
+        "t18809Lsd": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-114.00, 51.01], [-113.99, 51.01], [-113.99, 51.02], [-114.00, 51.02], [-114.00, 51.01]]]
+      },
+      "properties": {
+        "ObjectID": 4,
+        "t18809Meridian": 4,
+        "t18809Range": 5,
+        "t18809Township": 34,
+        "t18809Section": 12,
+        "t18809QuarterSection": 1,
+        "t18809Lsd": 8
+      }
+    }
+  ]
+}
