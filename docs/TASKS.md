@@ -9,7 +9,7 @@
 
 **Legend:** ✅ done · 🔨 in progress · ⬜ queued · 💤 dormant (blocked on external input) · 🚫 out of scope
 
-_Last updated: 2026-08-18 · `main` @ `4d706a0`_
+_Last updated: 2026-08-20_
 
 ---
 
@@ -90,15 +90,16 @@ _Last updated: 2026-08-18 · `main` @ `4d706a0`_
   off the main thread through `/api/map/agreement`; unused `/api/holdings/[id]` removed. Merged
   as PR #22.
 
-## 🔨 In progress
-
-- 🔨 **#17 — Atomic, observable mineral refresh.** Stage and validate all enabled GeoView layers,
+- ✅ **#17 — Atomic, observable mineral refresh.** Stage and validate all enabled GeoView layers,
   publish them as one SQLite transaction, delete rows removed upstream, preserve the prior snapshot
   on any failure, preserve agreement-number collisions across families and legacy agreement types,
   log batch/per-layer outcomes, warn about stale data in the header, and document weekly scheduling.
-- 🔨 **#18 — Authoritative ATS search.** Replaced regular-grid approximation with a separately
+
+- ✅ **#18 — Authoritative ATS search.** Replaced regular-grid approximation with a separately
   staged, source-count-validated offline cache of open GeoView `ATS_Grid_Ext_PROD/4` geometry.
   LSD, quarter, and section searches now use official polygons plus exact intersection refinement.
+  Live validation covers the layer's township-127 northern-edge fragments and merges 55 split
+  source features into MultiPolygon cells. The local cache holds 4,027,634 unique cells.
 
 ## 💤 Dormant — blocked on external input
 
