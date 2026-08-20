@@ -1,64 +1,89 @@
 /**
- * Tests for the approximate ATS → WGS84 grid conversion. Asserts coarse
- * positional correctness (Alberta bounds, quarter/LSD placement, monotonic
- * movement with township/range), not survey-grade precision.
+ * Offline tests for selecting official cached ATS legal-subdivision polygons.
  *
  * @module test/ats_grid
+ * Data source: GeoView ATS_Grid_Ext_PROD/4 (open, OGL-Alberta) — local fixture
  * @see CLAUDE.md §10
  */
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseAts } from "../lib/ats";
-import { atsApproxBbox, atsApproxCentroid } from "../lib/spatial/ats_grid";
+import { applySchema, openDb, type DB } from "../lib/db/client";
+import { normalizeAtsLsd } from "../lib/ingest/ats_adapter";
+import type { ArcGisFeature } from "../lib/schemas";
+import {
+  AtsGridUnavailableError,
+  atsCellsBbox,
+  authoritativeAtsCells,
+} from "../lib/spatial/ats_grid";
 
-function loc(s: string) {
-  const parsed = parseAts(s);
-  if (!parsed) throw new Error(`fixture descriptor failed to parse: ${s}`);
+const FIXTURE = JSON.parse(
+  readFileSync(join(process.cwd(), "src/test/fixtures/ats_lsd_layer4.geojson"), "utf8"),
+) as { features: ArcGisFeature[] };
+
+function loc(value: string) {
+  const parsed = parseAts(value);
+  if (!parsed) throw new Error(`Fixture descriptor failed to parse: ${value}`);
   return parsed;
 }
 
-describe("atsApproxBbox", () => {
-  it("places a section within Alberta's WGS84 extent, well-ordered", () => {
-    const [minLon, minLat, maxLon, maxLat] = atsApproxBbox(loc("12-034-05-W4"));
-    expect(minLon).toBeLessThan(maxLon);
-    expect(minLat).toBeLessThan(maxLat);
-    expect(minLon).toBeGreaterThan(-120);
-    expect(maxLon).toBeLessThan(-108);
-    expect(minLat).toBeGreaterThan(49);
-    expect(maxLat).toBeLessThan(60);
+function insertFixture(db: DB): void {
+  const insert = db.prepare(
+    `INSERT INTO ats_lsd_cells (
+       meridian, range_no, township, section_no, lsd,
+       bbox_minx, bbox_miny, bbox_maxx, bbox_maxy, geometry_geojson
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  for (const feature of FIXTURE.features) {
+    const cell = normalizeAtsLsd(feature);
+    insert.run(
+      cell.meridian,
+      cell.range,
+      cell.township,
+      cell.section,
+      cell.lsd,
+      ...cell.bbox,
+      cell.geometryGeoJSON,
+    );
+  }
+}
+
+let db: DB;
+
+beforeEach(() => {
+  db = openDb(":memory:");
+  applySchema(db);
+});
+
+afterEach(() => db.close());
+
+describe("authoritativeAtsCells", () => {
+  it("fails explicitly when the authoritative cache has not been ingested", () => {
+    expect(() => authoritativeAtsCells(db, loc("01-12-034-05-W4"))).toThrow(
+      AtsGridUnavailableError,
+    );
   });
 
-  it("positions the NE quarter north and east of the SW quarter", () => {
-    const [neLon, neLat] = atsApproxCentroid(loc("NE-12-034-05-W4"));
-    const [swLon, swLat] = atsApproxCentroid(loc("SW-12-034-05-W4"));
-    expect(neLat).toBeGreaterThan(swLat);
-    expect(neLon).toBeGreaterThan(swLon); // east = larger (less negative) lon
+  it("selects one LSD and four official cells for its quarter", () => {
+    insertFixture(db);
+    expect(authoritativeAtsCells(db, loc("01-12-034-05-W4")).map((cell) => cell.lsd)).toEqual([
+      1,
+    ]);
+    expect(authoritativeAtsCells(db, loc("SE-12-034-05-W4")).map((cell) => cell.lsd)).toEqual([
+      1, 2, 7, 8,
+    ]);
   });
 
-  it("an LSD cell is smaller than its enclosing section", () => {
-    const section = atsApproxBbox(loc("12-034-05-W4"));
-    const lsd = atsApproxBbox(loc("04-12-034-05-W4"));
-    const width = (b: number[]) => b[2] - b[0];
-    const height = (b: number[]) => b[3] - b[1];
-    expect(width(lsd)).toBeLessThan(width(section));
-    expect(height(lsd)).toBeLessThan(height(section));
+  it("selects every cached cell in a section and merges their bounds", () => {
+    insertFixture(db);
+    const cells = authoritativeAtsCells(db, loc("12-034-05-W4"));
+    expect(cells).toHaveLength(4);
+    expect(atsCellsBbox(cells)).toEqual([-114.01, 51, -113.99, 51.02]);
   });
 
-  it("moves north as township increases and west as range increases", () => {
-    const south = atsApproxCentroid(loc("12-034-05-W4"));
-    const north = atsApproxCentroid(loc("12-064-05-W4"));
-    expect(north[1]).toBeGreaterThan(south[1]);
-
-    const east = atsApproxCentroid(loc("12-034-05-W4"));
-    const west = atsApproxCentroid(loc("12-034-20-W4"));
-    expect(west[0]).toBeLessThan(east[0]); // larger range = further west = smaller lon
-  });
-
-  it("returns a centroid inside its own bbox", () => {
-    const b = atsApproxBbox(loc("SE-12-034-05-W4"));
-    const [lon, lat] = atsApproxCentroid(loc("SE-12-034-05-W4"));
-    expect(lon).toBeGreaterThanOrEqual(b[0]);
-    expect(lon).toBeLessThanOrEqual(b[2]);
-    expect(lat).toBeGreaterThanOrEqual(b[1]);
-    expect(lat).toBeLessThanOrEqual(b[3]);
+  it("returns no cells for a valid but unsurveyed descriptor", () => {
+    insertFixture(db);
+    expect(authoritativeAtsCells(db, loc("01-13-034-05-W4"))).toEqual([]);
   });
 });

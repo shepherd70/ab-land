@@ -9,6 +9,7 @@ open mineral data weekly so holder, status, and term information do not silently
 npm ci
 npm run db:init
 npm run ingest:minerals
+npm run ingest:ats
 ```
 
 The app header reports the last complete mineral refresh. It turns stale after eight days; set
@@ -64,3 +65,19 @@ node --input-type=module -e "import Database from 'better-sqlite3'; const db = n
 
 An old `running` row means the process was interrupted before it could record success or failure;
 live mineral rows were not published unless the batch row reached `ok`.
+
+## Authoritative ATS cache
+
+`npm run ingest:ats` is intentionally separate from the weekly mineral refresh. The official
+Legal Sub-Division layer contains roughly four million polygons, changes infrequently, and needs
+substantial temporary disk space while the new table is staged. Budget at least a few GB free.
+
+The job orders and pages the layer, validates every ATS key and polygon, verifies the downloaded
+row count against the server both before and after transfer, and atomically swaps tables only when
+the complete snapshot agrees. A failed or interrupted run leaves the previous live ATS table in
+place; a later run removes any abandoned staging table before restarting.
+
+Tune only if necessary with `ATS_INGEST_PAGE_SIZE`, `ATS_INGEST_THROTTLE_MS`, and
+`ATS_GEOMETRY_PRECISION`. The defaults request 5,000 cells per page, pause 100 ms between pages,
+and retain six WGS84 decimal places. Re-run after an announced ATS grid update or if the search API
+reports that the cache is unavailable; it does not belong in the weekly mineral schedule.

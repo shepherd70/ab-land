@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "db:init": "tsx scripts/init_db.ts",
     "ingest": "tsx scripts/ingest.ts",
+    "ingest:ats": "tsx scripts/ingest_ats.ts",
     "ingest:minerals": "tsx scripts/ingest_minerals.ts",
     "ingest:surface": "tsx scripts/ingest_surface.ts",
     "test": "vitest run",

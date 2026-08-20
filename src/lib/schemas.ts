@@ -33,6 +33,32 @@ export const ArcGisFeatureCollection = z.object({
 export type ArcGisFeatureCollection = z.infer<typeof ArcGisFeatureCollection>;
 export type ArcGisFeature = z.infer<typeof ArcGisFeature>;
 
+/** ArcGIS `returnCountOnly=true` response. */
+export const ArcGisFeatureCount = z.object({ count: z.number().int().nonnegative() });
+
+const GeoJsonPosition = z.array(z.number().finite()).min(2);
+const GeoJsonLinearRing = z.array(GeoJsonPosition).min(4);
+const GeoJsonPolygonCoordinates = z.array(GeoJsonLinearRing).min(1);
+
+/** Fully validated polygon geometry used by the authoritative ATS cache. */
+export const AtsPolygonGeometry = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("Polygon"), coordinates: GeoJsonPolygonCoordinates }),
+  z.object({ type: z.literal("MultiPolygon"), coordinates: z.array(GeoJsonPolygonCoordinates).min(1) }),
+]);
+
+/** Verified fields from ATS_Grid_Ext_PROD/MapServer/4. */
+export const AtsLsdProps = z.object({
+  ObjectID: z.number().int().positive(),
+  t18809Meridian: z.number().int().min(4).max(6),
+  t18809Range: z.number().int().min(1).max(34),
+  // The official layer includes 1,378 northern-edge fragments in township 127.
+  t18809Township: z.number().int().min(1).max(127),
+  t18809Section: z.number().int().min(1).max(36),
+  t18809QuarterSection: z.number().int().min(1).max(4),
+  t18809Lsd: z.number().int().min(1).max(16),
+});
+export type AtsLsdProps = z.infer<typeof AtsLsdProps>;
+
 /**
  * Properties shared by the verified GeoView mineral-agreement leaf layers
  * (PNG/31, oil sands/24, coal/39, minerals/57, brine/63, geothermal/72,

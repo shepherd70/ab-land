@@ -1,88 +1,107 @@
 /**
- * Approximate Alberta Township System (ATS / DLS) → WGS84 conversion.
- *
- * Computes an APPROXIMATE bounding box for a legal land description using the
- * regular DLS grid (townships 6 mi tall, ranges 6 mi wide from each meridian,
- * 36 serpentine sections, quarters, LSDs). It deliberately IGNORES road
- * allowances and survey corrections, so it is suitable only as a coarse spatial
- * pre-filter — never as an authoritative parcel boundary.
- *
- * The authoritative approach (documented follow-up) is to join the GeoView
- * `ATS_Grid_Ext_PROD` layer; that needs network access and is out of scope here.
+ * Exact offline lookup of authoritative Alberta Township System LSD polygons.
  *
  * @module lib/spatial/ats_grid
- * Data source: none (regular-grid arithmetic; not the authoritative ATS layer)
- * @see CLAUDE.md §1, §2 (Tier A follow-up)
+ * Data source: GeoView ATS_Grid_Ext_PROD/4 (open, OGL-Alberta), cached in SQLite
+ * @see CLAUDE.md §2 (Tier A), §3, §5
  */
+import type { MultiPolygon, Polygon } from "geojson";
 import type { AtsLocation } from "../ats";
+import { lsdsForQuarter } from "../ats";
+import type { DB } from "../db/client";
+import { AtsPolygonGeometry } from "../schemas";
 
-const MILE_KM = 1.609344;
-const DEG_LAT_KM = 110.574; // km per degree of latitude (≈constant)
-const DEG_LON_KM_EQUATOR = 111.32; // km per degree of longitude at the equator
-
-/** Degrees of latitude per mile (north–south is ~constant). */
-const MILE_LAT_DEG = MILE_KM / DEG_LAT_KM;
-
-/** East longitude (negative = west) of the base of each meridian. */
-const MERIDIAN_LON: Readonly<Record<4 | 5 | 6, number>> = { 4: -110, 5: -114, 6: -118 };
-
-/** [minLon, minLat, maxLon, maxLat] in WGS84. */
+/** [minX, minY, maxX, maxY] in WGS84. */
 export type Bbox = [number, number, number, number];
 
-/** Column index from the west edge (0..size-1) for a serpentine-numbered cell. */
-function colFromWest(index0: number, perRow: number, rowFromSouth: number): number {
-  const idx = index0 % perRow;
-  // Even rows (from south) are numbered east→west; odd rows west→east.
-  return rowFromSouth % 2 === 0 ? perRow - 1 - idx : idx;
+/** One authoritative legal-subdivision cell selected from the local cache. */
+export interface AtsGridCell {
+  lsd: number;
+  bbox: Bbox;
+  geometry: Polygon | MultiPolygon;
+}
+
+interface AtsGridRow {
+  lsd: number;
+  bbox_minx: number;
+  bbox_miny: number;
+  bbox_maxx: number;
+  bbox_maxy: number;
+  geometry_geojson: string;
+}
+
+/** Raised when a legal-location search is attempted before the ATS cache exists. */
+export class AtsGridUnavailableError extends Error {
+  constructor() {
+    super("Authoritative ATS data is unavailable; run `npm run ingest:ats` first.");
+    this.name = "AtsGridUnavailableError";
+  }
+}
+
+function ensureGridAvailable(db: DB): void {
+  try {
+    const row = db.prepare("SELECT 1 AS ok FROM ats_lsd_cells LIMIT 1").get();
+    if (!row) throw new AtsGridUnavailableError();
+  } catch (error: unknown) {
+    if (error instanceof AtsGridUnavailableError) throw error;
+    throw new AtsGridUnavailableError();
+  }
 }
 
 /**
- * Approximate WGS84 bounding box for an ATS location. Granularity follows the
- * descriptor: LSD (¼ mi) > quarter (½ mi) > section (1 mi).
+ * Load the 1, 4, or 16 official LSD polygons represented by a parsed ATS
+ * descriptor. A valid descriptor outside the surveyed grid returns no cells.
  */
-export function atsApproxBbox(loc: AtsLocation): Bbox {
-  const { section, township, range, meridian, quarter, lsd } = loc;
+export function authoritativeAtsCells(db: DB, loc: AtsLocation): AtsGridCell[] {
+  ensureGridAvailable(db);
+  const bind: Record<string, number> = {
+    meridian: loc.meridian,
+    range: loc.range,
+    township: loc.township,
+    section: loc.section,
+  };
+  let subdivisionClause = "";
 
-  // Township south edge: township 1's south boundary is the 49th parallel.
-  const twpSouthLat = 49 + (township - 1) * 6 * MILE_LAT_DEG;
-  const twpMidLatRad = ((twpSouthLat + 3 * MILE_LAT_DEG) * Math.PI) / 180;
-
-  // Range (east–west) width in degrees varies with latitude.
-  const degLonKm = DEG_LON_KM_EQUATOR * Math.cos(twpMidLatRad);
-  const rangeWidthDeg = (6 * MILE_KM) / degLonKm;
-  const sectionWidthDeg = rangeWidthDeg / 6;
-
-  // Range 1's east edge is at the meridian; higher ranges go west (smaller lon).
-  const twpWestLon = MERIDIAN_LON[meridian] - range * rangeWidthDeg;
-
-  // Section position within the 6×6 township (serpentine; section 1 at SE).
-  const sRow = Math.floor((section - 1) / 6);
-  const secWestLon = twpWestLon + colFromWest(section - 1, 6, sRow) * sectionWidthDeg;
-  const secSouthLat = twpSouthLat + sRow * MILE_LAT_DEG;
-
-  // Narrow to LSD, else quarter, else whole section.
-  if (lsd != null) {
-    const w = sectionWidthDeg / 4;
-    const h = MILE_LAT_DEG / 4;
-    const lRow = Math.floor((lsd - 1) / 4);
-    const west = secWestLon + colFromWest(lsd - 1, 4, lRow) * w;
-    const south = secSouthLat + lRow * h;
-    return [west, south, west + w, south + h];
+  if (loc.lsd != null) {
+    subdivisionClause = "AND lsd = @lsd";
+    bind.lsd = loc.lsd;
+  } else if (loc.quarter) {
+    const lsds = lsdsForQuarter(loc.quarter);
+    const placeholders = lsds.map((lsd, index) => {
+      bind[`lsd${index}`] = lsd;
+      return `@lsd${index}`;
+    });
+    subdivisionClause = `AND lsd IN (${placeholders.join(", ")})`;
   }
 
-  if (quarter) {
-    const w = sectionWidthDeg / 2;
-    const h = MILE_LAT_DEG / 2;
-    const west = secWestLon + (quarter.includes("E") ? w : 0);
-    const south = secSouthLat + (quarter.includes("N") ? h : 0);
-    return [west, south, west + w, south + h];
-  }
+  const rows = db
+    .prepare(
+      `SELECT lsd, bbox_minx, bbox_miny, bbox_maxx, bbox_maxy, geometry_geojson
+       FROM ats_lsd_cells
+       WHERE meridian = @meridian AND range_no = @range
+         AND township = @township AND section_no = @section
+         ${subdivisionClause}
+       ORDER BY lsd`,
+    )
+    .all(bind) as AtsGridRow[];
 
-  return [secWestLon, secSouthLat, secWestLon + sectionWidthDeg, secSouthLat + MILE_LAT_DEG];
+  return rows.map((row) => ({
+    lsd: row.lsd,
+    bbox: [row.bbox_minx, row.bbox_miny, row.bbox_maxx, row.bbox_maxy],
+    geometry: AtsPolygonGeometry.parse(JSON.parse(row.geometry_geojson)) as Polygon | MultiPolygon,
+  }));
 }
 
-/** Approximate [lon, lat] centroid for an ATS location. */
-export function atsApproxCentroid(loc: AtsLocation): [number, number] {
-  const [minLon, minLat, maxLon, maxLat] = atsApproxBbox(loc);
-  return [(minLon + maxLon) / 2, (minLat + maxLat) / 2];
+/** Bounding box covering a non-empty set of authoritative ATS cells. */
+export function atsCellsBbox(cells: AtsGridCell[]): Bbox {
+  if (cells.length === 0) throw new Error("Cannot compute an ATS bbox without cells");
+  return cells.reduce<Bbox>(
+    (bounds, cell) => [
+      Math.min(bounds[0], cell.bbox[0]),
+      Math.min(bounds[1], cell.bbox[1]),
+      Math.max(bounds[2], cell.bbox[2]),
+      Math.max(bounds[3], cell.bbox[3]),
+    ],
+    [...cells[0].bbox],
+  );
 }

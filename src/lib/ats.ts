@@ -7,10 +7,8 @@
  * Data source: none (string parsing)
  * @see CLAUDE.md §1 (search by location)
  *
- * This module only parses/normalizes the descriptor. `lib/spatial/ats_grid`
- * turns an AtsLocation into an approximate WGS84 bbox for a coarse spatial
- * filter; an authoritative polygon match via the GeoView `ATS_Grid_Ext_PROD`
- * layer is a network-dependent follow-up.
+ * This module parses/normalizes descriptors and maps quarter names to the LSD
+ * numbers used by the offline authoritative ATS cache.
  */
 
 export type Quarter = "NE" | "NW" | "SE" | "SW";
@@ -19,12 +17,18 @@ export interface AtsLocation {
   lsd?: number; // 1..16
   quarter?: Quarter;
   section: number; // 1..36
-  township: number; // 1..126
+  township: number; // 1..127 (the official layer includes northern-edge T127 fragments)
   range: number; // 1..34
   meridian: 4 | 5 | 6; // West of 4th/5th/6th meridian
 }
 
 const QUARTERS: ReadonlySet<string> = new Set(["NE", "NW", "SE", "SW"]);
+const QUARTER_LSDS: Readonly<Record<Quarter, readonly number[]>> = {
+  SE: [1, 2, 7, 8],
+  SW: [3, 4, 5, 6],
+  NW: [11, 12, 13, 14],
+  NE: [9, 10, 15, 16],
+};
 
 function inRange(n: number, lo: number, hi: number): boolean {
   return Number.isInteger(n) && n >= lo && n <= hi;
@@ -68,7 +72,7 @@ export function parseAts(input: string): AtsLocation | null {
 
   if (!meridianMatch) return null;
   if (!inRange(section, 1, 36)) return null;
-  if (!inRange(township, 1, 126)) return null;
+  if (!inRange(township, 1, 127)) return null;
   if (!inRange(range, 1, 34)) return null;
 
   const meridian = Number(meridianMatch[1]) as 4 | 5 | 6;
@@ -83,4 +87,18 @@ export function formatAts(loc: AtsLocation): string {
   const rge = String(loc.range).padStart(2, "0");
   const mer = `W${loc.meridian}`;
   return [head, sec, twp, rge, mer].filter(Boolean).join("-");
+}
+
+/** The four legal subdivisions making up an ATS quarter section. */
+export function lsdsForQuarter(quarter: Quarter): readonly number[] {
+  return QUARTER_LSDS[quarter];
+}
+
+/** Official ATS quarter-section code (1=SE, 2=SW, 3=NW, 4=NE) for an LSD. */
+export function quarterCodeForLsd(lsd: number): 1 | 2 | 3 | 4 {
+  if (QUARTER_LSDS.SE.includes(lsd)) return 1;
+  if (QUARTER_LSDS.SW.includes(lsd)) return 2;
+  if (QUARTER_LSDS.NW.includes(lsd)) return 3;
+  if (QUARTER_LSDS.NE.includes(lsd)) return 4;
+  throw new Error(`Invalid legal subdivision: ${lsd}`);
 }

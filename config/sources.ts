@@ -22,6 +22,13 @@ export const ARCGIS_BASE_URL =
   process.env.ARCGIS_BASE_URL ??
   "https://gis.energy.gov.ab.ca/arcgis/rest/services/Geoview";
 
+/** Field-verified authoritative ATS Legal Sub-Division grid. */
+export const ATS_GRID_SOURCE = {
+  label: "Legal Sub-Division",
+  service: "ATS_Grid_Ext_PROD",
+  layerId: 4,
+} as const;
+
 /**
  * Mineral agreement layers, all in the Mineral_Agreements_Ext_PROD MapServer and
  * all field-verified (see header). Row counts noted are as observed at

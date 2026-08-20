@@ -96,11 +96,9 @@ _Last updated: 2026-08-18 · `main` @ `4d706a0`_
   publish them as one SQLite transaction, delete rows removed upstream, preserve the prior snapshot
   on any failure, preserve agreement-number collisions across families and legacy agreement types,
   log batch/per-layer outcomes, warn about stale data in the header, and document weekly scheduling.
-
-## ⬜ Next up
-
-- ⬜ **#18 — Authoritative ATS search.** Replace regular-grid approximation with an offline,
-  indexed ingest of the open GeoView `ATS_Grid_Ext_PROD` geometry.
+- 🔨 **#18 — Authoritative ATS search.** Replaced regular-grid approximation with a separately
+  staged, source-count-validated offline cache of open GeoView `ATS_Grid_Ext_PROD/4` geometry.
+  LSD, quarter, and section searches now use official polygons plus exact intersection refinement.
 
 ## 💤 Dormant — blocked on external input
 
@@ -113,7 +111,7 @@ _Last updated: 2026-08-18 · `main` @ `4d706a0`_
 ## 🧱 Infra & quality
 
 - ✅ **CI** — GitHub Actions (`.github/workflows/ci.yml`): `npm ci → lint → typecheck → test → build` on every PR and push to `main` (Node 24).
-- ✅ **Test suites (13 files)** — ATS parsing/search, company matching and paging, spatial helpers,
+- ✅ **Test suites (15 files)** — ATS parsing/search/atomic ingest, company matching and paging, spatial helpers,
   basemap config, offline atomic mineral ingest, ingest health, and tenure formatting.
 - ✅ **Route-handler tests** — all 4 API handlers covered against temp SQLite fixtures: map
   handlers in `api_map.test.ts`, and search in `api_routes.test.ts` (FTS company search, agreement

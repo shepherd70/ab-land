@@ -13,7 +13,9 @@ import type { HoldingsSummary } from "../tenure";
 import { normalizeCompanyName } from "../matching/company_names";
 import { aliasGroupKeys } from "../matching/company_aliases";
 import { parseAts, type AtsLocation } from "../ats";
-import { atsApproxBbox } from "../spatial/ats_grid";
+import { AtsPolygonGeometry } from "../schemas";
+import { atsCellsBbox, authoritativeAtsCells } from "../spatial/ats_grid";
+import { polygonsOverlapArea } from "../spatial/geo";
 
 /** Raw row shape as stored. */
 interface DbRow {
@@ -124,8 +126,7 @@ export function searchDispositions(db: DB, params: SearchParams): Disposition[] 
   }
 
   // ATS: explicit kind, or auto when the query parses as a legal land description.
-  // Uses an approximate DLS grid bbox (lib/spatial/ats_grid) as a coarse filter;
-  // the authoritative ATS_Grid_Ext_PROD join is a network-dependent follow-up.
+  // Official LSD polygons are read from the offline ATS_Grid_Ext_PROD cache.
   if (kind === "ats" || kind === "auto") {
     const loc = parseAts(q);
     if (loc) return searchByAts(db, loc, { family, limit, offset });
@@ -145,8 +146,8 @@ export function searchDispositions(db: DB, params: SearchParams): Disposition[] 
 }
 
 /**
- * Dispositions whose stored bbox overlaps the approximate ATS cell. A coarse
- * spatial pre-filter, not an authoritative parcel match (see ats_grid).
+ * Dispositions intersecting the official cached ATS polygon. SQLite's R*Tree
+ * narrows candidates; Turf then performs the exact polygon intersection.
  */
 function searchByAts(
   db: DB,
@@ -154,16 +155,27 @@ function searchByAts(
   opts: { family?: string; limit: number; offset: number },
 ): Disposition[] {
   const { family, limit, offset } = opts;
-  const [minx, miny, maxx, maxy] = atsApproxBbox(loc);
-  const sql = `SELECT ${SUMMARY_COLS} FROM dispositions d
-    WHERE d.bbox_minx IS NOT NULL
-      AND d.bbox_minx <= @maxx AND d.bbox_maxx >= @minx
-      AND d.bbox_miny <= @maxy AND d.bbox_maxy >= @miny
+  const cells = authoritativeAtsCells(db, loc);
+  if (cells.length === 0) return [];
+  const [minx, miny, maxx, maxy] = atsCellsBbox(cells);
+  const sql = `SELECT ${SUMMARY_COLS}, d.geometry_geojson AS match_geometry_geojson
+    FROM dispositions d
+    JOIN dispositions_rtree r ON r.id = d.id
+    WHERE r.minx <= @maxx AND r.maxx >= @minx
+      AND r.miny <= @maxy AND r.maxy >= @miny
+      AND d.geometry_geojson IS NOT NULL
       ${family ? "AND d.family = @family" : ""}
-    ORDER BY d.agreement_number, d.tract LIMIT @limit OFFSET @offset`;
-  const bind: Record<string, unknown> = { minx, miny, maxx, maxy, limit, offset };
+    ORDER BY d.agreement_number, d.tract`;
+  const bind: Record<string, unknown> = { minx, miny, maxx, maxy };
   if (family) bind.family = family;
-  return (db.prepare(sql).all(bind) as DbRow[]).map(rowToDisposition);
+  const candidates = db.prepare(sql).all(bind) as Array<DbRow & { match_geometry_geojson: string }>;
+  return candidates
+    .filter((row) => {
+      const dispositionGeometry = AtsPolygonGeometry.parse(JSON.parse(row.match_geometry_geojson));
+      return cells.some((cell) => polygonsOverlapArea(dispositionGeometry, cell.geometry));
+    })
+    .slice(offset, offset + limit)
+    .map(rowToDisposition);
 }
 
 /** All tracts of a given agreement number (full geometry included). */

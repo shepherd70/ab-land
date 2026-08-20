@@ -6,7 +6,7 @@
  * Data source: none (operates on already-fetched GeoJSON)
  * @see CLAUDE.md §5, §6
  */
-import { area, bbox, booleanPointInPolygon, centroid, simplify } from "@turf/turf";
+import { area, bbox, booleanPointInPolygon, centroid, feature, featureCollection, intersect, simplify } from "@turf/turf";
 import type { Feature, Geometry, MultiPolygon, Polygon, Position } from "geojson";
 
 type AnyGeom = Geometry | Feature<Geometry>;
@@ -43,6 +43,14 @@ export function bboxIntersects(
   b: [number, number, number, number],
 ): boolean {
   return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+}
+
+/** Do two polygonal geometries share positive area (boundary contact does not count)? */
+export function polygonsOverlapArea(
+  a: Polygon | MultiPolygon,
+  b: Polygon | MultiPolygon,
+): boolean {
+  return intersect(featureCollection([feature(a), feature(b)])) !== null;
 }
 
 /**
